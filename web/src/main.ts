@@ -12,6 +12,7 @@ import type { Dataset, SourceStatus } from "../../src/core/types.ts";
 import { SYSTEM_PROMPT, TOOLS, runTool, type ToolContext } from "../../src/ai/tools.ts";
 import { answerOffline } from "../../src/ai/offline.ts";
 import { initHelp, termButton } from "./help.ts";
+import { mountGear3D } from "./gear3d.ts";
 
 declare const EMBEDDED: boolean;
 
@@ -879,5 +880,9 @@ initHelp(() => (data ? { analysis: data.analysis, insights: data.insights, days 
 wireControls();
 wireNav();
 wireChat();
-render();
+render().then(() => {
+  // The 3D part is decoration: load it after the numbers are on screen.
+  const host = document.getElementById("gear3d");
+  if (host) window.setTimeout(() => mountGear3D(host).catch(() => { host.hidden = true; }), 250);
+});
 initAi();

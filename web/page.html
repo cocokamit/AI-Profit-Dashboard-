@@ -361,6 +361,27 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
 .skeleton { background: linear-gradient(90deg, var(--surface-2) 0, var(--surface-3) 50%, var(--surface-2) 100%); background-size: 800px 100%; animation: shimmer 1.3s linear infinite; border-radius: 8px; }
 
 
+
+/* ---------- 3D part ---------- */
+.hero-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 8px 16px; align-items: center; }
+.hero-main.no3d .hero-top { grid-template-columns: minmax(0, 1fr); }
+.hero-text { min-width: 0; }
+.gear3d { position: relative; height: 240px; margin: -12px -10px -18px 0; border-radius: 12px; opacity: 0; transition: opacity 0.8s ease; touch-action: pan-y; }
+.gear3d.ready { opacity: 1; }
+.gear3d::before { content: ""; position: absolute; inset: 14% 10%; border-radius: 50%; background: radial-gradient(closest-side, var(--accent-soft), transparent 72%); z-index: -1; }
+.gear3d canvas { display: block; width: 100%; height: 100%; outline: none; border-radius: 12px; }
+.gear3d canvas:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.g-hint { position: absolute; right: 10px; bottom: 10px; font-size: 11px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; pointer-events: none; transition: opacity 0.5s, transform 0.5s var(--ease); display: inline-flex; align-items: center; gap: 5px; }
+.g-hint::before { content: "↻"; color: var(--accent); }
+.g-hint.gone { opacity: 0; transform: translateY(4px); }
+.g-label { position: absolute; left: 0; top: 0; pointer-events: none; background: var(--ink); color: var(--bg); border-radius: 10px; padding: 8px 11px; font-size: 12px; line-height: 1.45; box-shadow: var(--shadow-2); display: flex; flex-direction: column; white-space: nowrap; animation: fade 0.18s ease both; }
+.g-label b { font-size: 12.5px; font-weight: 600; }
+.g-label span { opacity: 0.75; font-family: var(--font-num); font-size: 11px; }
+@media (max-width: 640px) {
+  .hero-top { grid-template-columns: minmax(0, 1fr); }
+  .gear3d { height: 210px; margin: 4px -8px -8px; }
+}
+
 /* ---------- guidance: info buttons, popovers, tour, guide ---------- */
 .guide-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer; color: var(--ink-2); font-size: 13px; font-weight: 500; transition: border-color 0.2s, color 0.2s; }
 .guide-btn:hover { border-color: var(--accent); color: var(--ink); }
@@ -494,10 +515,15 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
 <main class="wrap">
   <section class="hero" id="overview" aria-label="Overview">
     <div class="card-s hero-main rise" style="--i:0" id="hero-main">
-      <div class="eyebrow"><span class="live-dot" aria-hidden="true"></span><span id="hero-label">Profit after ads · last 30 days</span></div>
-      <div class="hero-num" id="hero-num"><small>CHF</small><span>0</span></div>
-      <div class="hero-meta" id="hero-meta"><span class="skeleton" style="width:220px;height:18px;display:inline-block"></span></div>
-      <div class="sources" id="sources"></div>
+      <div class="hero-top">
+        <div class="hero-text">
+          <div class="eyebrow"><span class="live-dot" aria-hidden="true"></span><span id="hero-label">Profit after ads · last 30 days</span></div>
+          <div class="hero-num" id="hero-num"><small>CHF</small><span>0</span></div>
+          <div class="hero-meta" id="hero-meta"><span class="skeleton" style="width:220px;height:18px;display:inline-block"></span></div>
+          <div class="sources" id="sources"></div>
+        </div>
+        <div class="gear3d" id="gear3d"><span class="g-hint">Drag to turn</span><div class="g-label" hidden></div></div>
+      </div>
       <div class="hero-spark" id="hero-spark"></div>
     </div>
     <div class="card-s focus rise" style="--i:1" id="focus-card">

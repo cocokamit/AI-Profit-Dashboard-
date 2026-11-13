@@ -125,7 +125,8 @@ src/http/api.ts    API route handlers (shared by the local server and Vercel)
 src/server.ts      local/container server: API + static dashboard
 src/vercel/        Vercel function entry points
 src/jobs/          monitor.ts (hourly detection, Slack alerts, daily AI briefing)
-web/               dashboard (page.html + src/main.ts), built by scripts/build.ts
+web/               dashboard (page.html + src/main.ts), guidance (src/help.ts), 3D gear hero
+                   (src/gear3d.ts, three.js r128 from cdnjs), built by scripts/build.ts
 test/              engine invariants, detector, tool and rules-mode tests
 .github/workflows/ ci.yml (typecheck, tests, build), monitor.yml (hourly monitoring)
 ```
