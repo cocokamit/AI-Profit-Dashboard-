@@ -360,6 +360,76 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
 .foot { color: var(--muted); font-size: 12px; margin: 0; }
 .skeleton { background: linear-gradient(90deg, var(--surface-2) 0, var(--surface-3) 50%, var(--surface-2) 100%); background-size: 800px 100%; animation: shimmer 1.3s linear infinite; border-radius: 8px; }
 
+
+/* ---------- guidance: info buttons, popovers, tour, guide ---------- */
+.guide-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer; color: var(--ink-2); font-size: 13px; font-weight: 500; transition: border-color 0.2s, color 0.2s; }
+.guide-btn:hover { border-color: var(--accent); color: var(--ink); }
+.guide-btn svg { width: 16px; height: 16px; }
+.info { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 8px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); font-family: var(--font-body); font-size: 11.5px; font-weight: 600; line-height: 1; cursor: pointer; vertical-align: 2px; letter-spacing: 0; text-transform: none; transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s var(--ease); flex: none; }
+.info:hover, .info[aria-expanded="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); transform: scale(1.08); }
+.info.sm { width: 16px; height: 16px; font-size: 10px; margin-left: 5px; vertical-align: 1px; }
+.info.demo { cursor: default; margin: 0 2px; width: 17px; height: 17px; font-size: 10px; vertical-align: 0; }
+.kpi .label > span:first-child { display: inline-flex; align-items: center; }
+.pop { position: fixed; z-index: 60; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: var(--shadow-2), 0 0 0 1px rgb(0 0 0 / 0.02); padding: 14px 16px 16px; animation: pop-in 0.22s var(--ease) both; font-size: 13px; }
+.pop[data-side="above"] { animation-name: pop-in-up; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes pop-in-up { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: none; } }
+.pop-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+.pop-head b { font-size: 14.5px; font-weight: 600; }
+.pop-x { border: 0; background: var(--surface-2); color: var(--muted); width: 26px; height: 26px; border-radius: 8px; cursor: pointer; font-size: 12px; flex: none; }
+.pop-x:hover { color: var(--ink); background: var(--surface-3); }
+.h-what { margin: 0 0 8px; color: var(--ink-2); line-height: 1.55; }
+.h-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 10px 0 4px; }
+.h-read { margin: 0 0 4px; padding-left: 18px; color: var(--ink-2); }
+.h-read li { margin: 3px 0; }
+.h-now { margin-top: 10px; background: var(--accent-soft); border-radius: 10px; padding: 9px 11px; color: var(--ink); line-height: 1.5; }
+.h-now span { display: block; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+.h-terms { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.h-term { border: 1px dashed var(--line-strong); background: transparent; border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--ink-2); cursor: pointer; }
+.h-term:hover { border-style: solid; border-color: var(--accent); color: var(--ink); }
+
+.t-spot { position: fixed; z-index: 70; border-radius: 16px; box-shadow: 0 0 0 9999px rgb(6 10 16 / 0.62), 0 0 0 2px var(--accent); transition: top 0.45s var(--ease), left 0.45s var(--ease), width 0.45s var(--ease), height 0.45s var(--ease); pointer-events: auto; cursor: pointer; }
+.t-card { position: fixed; z-index: 71; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 16px; box-shadow: var(--shadow-2); padding: 16px 18px; font-size: 13px; transition: top 0.45s var(--ease), left 0.45s var(--ease); max-height: calc(100vh - 32px); overflow-y: auto; }
+.t-card.swap { animation: rise 0.35s var(--ease) both; }
+.t-card h3 { font-size: 17px; font-weight: 600; margin: 4px 0 6px; }
+.t-top { display: flex; justify-content: space-between; align-items: center; }
+.t-count { font-size: 11.5px; color: var(--muted); font-family: var(--font-num); }
+.t-dots { display: flex; gap: 4px; margin: 8px 0 4px; }
+.t-dots i { height: 4px; flex: 1; border-radius: 2px; background: var(--surface-3); transition: background 0.3s; }
+.t-dots i.past { background: var(--accent-soft); }
+.t-dots i.on { background: var(--accent); }
+.t-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+.drawer { position: fixed; inset: 0; z-index: 65; }
+.drawer-bg { position: absolute; inset: 0; background: rgb(6 10 16 / 0.45); opacity: 0; transition: opacity 0.3s; }
+.drawer-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow-2); transform: translateX(100%); transition: transform 0.35s var(--ease); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.drawer.open .drawer-bg { opacity: 1; }
+.drawer.open .drawer-panel { transform: none; }
+.drawer-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px 12px; border-bottom: 1px solid var(--line); }
+.drawer-head h2 { font-size: 18px; font-weight: 600; }
+.drawer-body { padding: 16px 20px 32px; overflow-y: auto; font-size: 13.5px; }
+.g-steps { list-style: none; counter-reset: g; padding: 0; margin: 4px 0 16px; display: flex; flex-direction: column; gap: 10px; }
+.g-steps li { counter-increment: g; display: grid; grid-template-columns: 28px 1fr; column-gap: 10px; }
+.g-steps li::before { content: counter(g); grid-row: span 2; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-family: var(--font-num); font-size: 12px; font-weight: 600; }
+.g-steps b { font-weight: 600; }
+.g-steps span { color: var(--ink-2); font-size: 13px; }
+.g-search { max-width: none; margin: 6px 0 10px; }
+.g-search input { padding-left: 12px; }
+.glossary { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.glossary > div { padding: 10px 12px; border-radius: 10px; transition: background 0.3s; }
+.glossary > div.hl { background: var(--accent-soft); }
+.glossary dt { font-weight: 600; }
+.glossary dd { margin: 2px 0 0; color: var(--ink-2); line-height: 1.55; }
+.glossary em { display: block; margin-top: 4px; color: var(--muted); font-size: 12.5px; }
+
+.welcome { position: fixed; z-index: 55; left: max(20px, env(safe-area-inset-left, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); width: min(380px, calc(100vw - 32px)); display: flex; gap: 12px; padding: 16px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 16px; box-shadow: var(--shadow-2); animation: rise 0.45s var(--ease) both; font-size: 13px; }
+.welcome.out { animation: fade 0.25s ease reverse both; }
+.welcome b { font-size: 14.5px; }
+.welcome p { margin: 3px 0 0; color: var(--ink-2); }
+.welcome .t-btns { justify-content: flex-start; margin-top: 12px; }
+.bot.sm { width: 32px; height: 32px; border-radius: 10px; font-weight: 700; font-size: 15px; }
+@media (max-width: 520px) { .guide-btn span { display: none; } .guide-btn { padding: 0 9px; } }
+
 @media (max-width: 1180px) {
   .work { grid-template-columns: minmax(0, 1fr); }
   .chat { position: static; height: 640px; }
@@ -415,6 +485,7 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
         <button type="button" id="range-30" data-days="30" aria-pressed="true">30d</button>
         <button type="button" id="range-90" data-days="90" aria-pressed="false">90d</button>
       </div>
+      <button type="button" class="guide-btn" id="guide" aria-label="Open the guide: how to read this dashboard and a glossary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><path d="M12 17.2h.01"/></svg><span>Guide</span></button>
       <button type="button" class="icon-btn" id="theme" aria-label="Switch light/dark theme" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
     </div>
   </div>
@@ -422,16 +493,16 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
 
 <main class="wrap">
   <section class="hero" id="overview" aria-label="Overview">
-    <div class="card-s hero-main rise" style="--i:0">
+    <div class="card-s hero-main rise" style="--i:0" id="hero-main">
       <div class="eyebrow"><span class="live-dot" aria-hidden="true"></span><span id="hero-label">Profit after ads · last 30 days</span></div>
       <div class="hero-num" id="hero-num"><small>CHF</small><span>0</span></div>
       <div class="hero-meta" id="hero-meta"><span class="skeleton" style="width:220px;height:18px;display:inline-block"></span></div>
       <div class="sources" id="sources"></div>
       <div class="hero-spark" id="hero-spark"></div>
     </div>
-    <div class="card-s focus rise" style="--i:1">
+    <div class="card-s focus rise" style="--i:1" id="focus-card">
       <div class="focus-head">
-        <div><h2>Today's focus</h2><p class="sub" id="focus-sub">Highest-impact findings right now</p></div>
+        <div><h2 id="focus-title">Today's focus</h2><p class="sub" id="focus-sub">Highest-impact findings right now</p></div>
         <div class="ring" title="Share of the CHF at stake you marked as done"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="27" fill="none" stroke-width="6"/><circle class="val" id="ring-val" cx="32" cy="32" r="27" fill="none" stroke-width="6" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><span id="ring-txt">0%</span></div>
       </div>
       <div class="focus-list" id="focus-list"></div>
@@ -443,14 +514,14 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
 
   <div class="work">
     <div class="stack">
-      <section class="card-s panel rise" style="--i:3" aria-labelledby="wf-title">
+      <section class="card-s panel rise" style="--i:3" aria-labelledby="wf-title" id="wf-panel">
         <div class="panel-head">
           <div><h2 id="wf-title">Where the money goes</h2><p>From gross sales to profit after advertising. Hover a bar for its share of net sales.</p></div>
         </div>
         <div class="chart" id="waterfall"></div>
       </section>
 
-      <section class="card-s panel rise" style="--i:4" aria-labelledby="daily-title">
+      <section class="card-s panel rise" style="--i:4" aria-labelledby="daily-title" id="daily-panel">
         <div class="panel-head">
           <div><h2 id="daily-title">Daily profit after ads vs. ad spend</h2><p>CHF per day. Click a series to hide it.</p></div>
           <div class="legend" id="daily-legend">
@@ -462,7 +533,7 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
       </section>
     </div>
 
-    <aside class="card-s chat rise" style="--i:3" aria-labelledby="chat-title">
+    <aside class="card-s chat rise" style="--i:3" aria-labelledby="chat-title" id="chat-panel">
       <div class="chat-head">
         <div class="bot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></div>
         <div><h2 id="chat-title">Profit analyst <span class="ai-state" id="ai-state">Claude</span></h2><p>Every number comes from the profit engine via tool calls.</p></div>

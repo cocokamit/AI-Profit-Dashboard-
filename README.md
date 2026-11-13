@@ -21,6 +21,16 @@ Without an API key (or when a demo viewer is not signed in to Claude), the chat 
 
 Requires Node ≥ 22.18. TypeScript runs natively, so there is no compile step for the server.
 
+## Help for first-time users
+
+The dashboard explains itself, so non-experts can use it:
+- **"?" on every module** says what it shows, how to read it, and what the current numbers mean (e.g. "Out of every CHF 100 customers paid, about CHF 22 is left as profit after ads").
+- **Guided tour**: offered on the first visit, and available any time from **Guide**. It highlights each module in turn.
+- **Guide panel**: the dashboard in three questions (are we making money, why, what to do) plus a searchable glossary (POAS, CM3, true ROAS, …).
+- **Analyst chat** answers "What does POAS mean?" in rules mode as well as with Claude.
+
+Texts live in `web/src/help.ts` and `src/ai/glossary.ts`.
+
 ## Deploy to Vercel
 
 1. In Vercel: **Add New → Project**, import this repository. `vercel.json` sets the build, so leave the framework preset at **Other** and the other settings at their defaults.

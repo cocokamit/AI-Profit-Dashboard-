@@ -69,3 +69,11 @@ test("offline answers cover the standard questions", async () => {
   assert.match(answerOffline("Was sollten wir diese Woche als Erstes tun?", ctx), /Massnahmen/);
   assert.match(answerOffline(`Explain this finding: "${insights[0]!.title}"`, ctx), /Next step/);
 });
+
+test("glossary questions are answered in rules mode", async () => {
+  const { answerOffline } = await import("../src/ai/offline.ts");
+  const ctx = { analysis: a, insights: detectInsights(a, ds), dataset: ds };
+  assert.match(answerOffline("What does POAS mean?", ctx), /POAS \(profit on ad spend\)/);
+  assert.match(answerOffline("what is true ROAS", ctx), /True ROAS/);
+  assert.match(answerOffline("Was bedeutet CM3?", ctx), /CM3/);
+});

@@ -11,6 +11,7 @@ import type { Insight } from "../../src/engine/insights.ts";
 import type { Dataset, SourceStatus } from "../../src/core/types.ts";
 import { SYSTEM_PROMPT, TOOLS, runTool, type ToolContext } from "../../src/ai/tools.ts";
 import { answerOffline } from "../../src/ai/offline.ts";
+import { initHelp, termButton } from "./help.ts";
 
 declare const EMBEDDED: boolean;
 
@@ -236,11 +237,11 @@ function renderKpis(a: Analysis) {
   const ret = t.units ? t.refundedUnits / t.units : 0;
   const retPrev = p && p.units ? p.refundedUnits / p.units : undefined;
   $("kpis").innerHTML = `
-    <div class="card-s kpi rise" style="--i:2"><div class="label">Net sales ${delta(t.netSales, p?.netSales)}</div><div class="value" id="k-sales"></div><div class="sub">after discounts and refunds</div><div class="spark">${spark(a.daily.map((d) => d.netSales), "var(--series-1)")}</div></div>
-    <div class="card-s kpi rise" style="--i:3"><div class="label">Ad spend ${delta(t.adSpend, p?.adSpend, false)}</div><div class="value" id="k-ads"></div><div class="sub">${pct(t.adSpend / (t.netSales || 1), 1)} of net sales</div><div class="spark">${spark(a.daily.map((d) => d.adSpend), "var(--series-2)")}</div></div>
-    <div class="card-s kpi rise" style="--i:4"><div class="label">Paid POAS</div><div class="value" id="k-poas"></div><div class="sub">contribution per CHF 1 of ads</div>
+    <div class="card-s kpi rise" style="--i:2"><div class="label"><span>Net sales${termButton("net-sales")}</span>${delta(t.netSales, p?.netSales)}</div><div class="value" id="k-sales"></div><div class="sub">after discounts and refunds</div><div class="spark">${spark(a.daily.map((d) => d.netSales), "var(--series-1)")}</div></div>
+    <div class="card-s kpi rise" style="--i:3"><div class="label"><span>Ad spend${termButton("ad-spend")}</span>${delta(t.adSpend, p?.adSpend, false)}</div><div class="value" id="k-ads"></div><div class="sub">${pct(t.adSpend / (t.netSales || 1), 1)} of net sales</div><div class="spark">${spark(a.daily.map((d) => d.adSpend), "var(--series-2)")}</div></div>
+    <div class="card-s kpi rise" style="--i:4"><div class="label"><span>Paid POAS${termButton("poas")}</span></div><div class="value" id="k-poas"></div><div class="sub">contribution per CHF 1 of ads</div>
       <div class="meter"><i style="width:${Math.min(100, (poas / 3) * 100)}%;background:${poas >= 1 ? "var(--good)" : "var(--bad)"}"></i><span class="mark" style="left:33.3%" title="break-even 1.00x"></span></div><div class="meter-cap"><span>0</span><span>break-even 1.0x</span><span>3.0x</span></div></div>
-    <div class="card-s kpi rise" style="--i:5"><div class="label">Return rate ${retPrev !== undefined ? delta(ret, retPrev, false) : ""}</div><div class="value" id="k-ret"></div><div class="sub">${chf(t.refunds)} refunded</div>
+    <div class="card-s kpi rise" style="--i:5"><div class="label"><span>Return rate${termButton("return-rate")}</span>${retPrev !== undefined ? delta(ret, retPrev, false) : ""}</div><div class="value" id="k-ret"></div><div class="sub">${chf(t.refunds)} refunded</div>
       <div class="meter"><i style="width:${Math.min(100, (ret / 0.1) * 100)}%;background:${ret > 0.06 ? "var(--warn)" : "var(--accent)"}"></i><span class="mark" style="left:50%" title="5% benchmark"></span></div><div class="meter-cap"><span>0%</span><span>5%</span><span>10%</span></div></div>`;
   countTo($("k-sales"), "k-sales", t.netSales, chf);
   countTo($("k-ads"), "k-ads", t.adSpend, chf);
@@ -609,6 +610,7 @@ const SUGGESTIONS = [
   "Where are we currently losing money?",
   "Which marketing budgets should we optimize?",
   "Was sollten wir diese Woche als Erstes tun?",
+  "What does POAS mean?",
 ];
 const TOOL_LABEL: Record<string, string> = {
   get_overview: "store P&L", list_products: "products", list_campaigns: "campaigns", get_insights: "findings",
@@ -873,6 +875,7 @@ function wireControls() {
 }
 
 wireTheme();
+initHelp(() => (data ? { analysis: data.analysis, insights: data.insights, days } : undefined));
 wireControls();
 wireNav();
 wireChat();

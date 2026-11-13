@@ -5,6 +5,7 @@
  * reasoning on top. Output is the same markdown-lite the chat renders.
  */
 import { runTool, type ToolContext } from "./tools.ts";
+import { findTerm } from "./glossary.ts";
 
 const fmt = new Intl.NumberFormat("de-CH", { maximumFractionDigits: 0 });
 const chf = (n: number | null) => `CHF ${fmt.format(Math.round(n ?? 0))}`;
@@ -75,6 +76,9 @@ export function answerOffline(question: string, ctx: ToolContext): string {
       ...Object.entries(finding.metrics).map(([k, v]) => `- ${k}: ${v}`),
       `Next step: ${finding.recommendation}`,
     ].join("\n");
+  } else if (/what (is|are|does|do)|what's|mean|meaning|bedeut|was (ist|sind|heisst)|define|explain/.test(q) && findTerm(q)) {
+    const t = findTerm(q)!;
+    body = `**${t.term}**: ${t.short}${t.example ? `\n\nExample: ${t.example}` : ""}`;
   } else if (/budget|marketing|optimi|campaign|kampagne|\bads?\b|werbung/.test(q)) body = budgets(ctx);
   else if (/los|verlier|geld|money|problem|verlust/.test(q)) body = losing(ctx);
   else if (/profitab|rentab|best|top|meist/.test(q)) body = profitable(ctx);
