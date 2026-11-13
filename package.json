@@ -1,0 +1,23 @@
+{
+  "name": "ai-profit-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-based profit monitoring and control system for e-commerce (PoC: Shopify, Google Ads, Meta).",
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "start": "npm run build && node src/server.ts",
+    "monitor": "node src/jobs/monitor.ts --once",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}

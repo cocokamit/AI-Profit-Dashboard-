@@ -1,0 +1,309 @@
+<title>AI Profit Dashboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
+<style>
+/* Layout: control-room page. Sticky header, KPI strip, 2-column work area (evidence left, AI analyst right), then the action list and the two ledgers. */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --ink: #14171f;
+  --ink-2: #4a5160;
+  --muted: #6b7383;
+  --line: #e2e5eb;
+  --accent: #0f6f6a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3f1ef;
+  --good: #16794a;
+  --good-soft: #e4f3ea;
+  --bad: #c0352c;
+  --bad-soft: #fbe9e7;
+  --warn: #a8660b;
+  --warn-soft: #fbf0dc;
+  --info: #3b5bab;
+  --info-soft: #e8edf8;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --bar-cost: #b9bfca;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1015; --surface: #161920; --surface-2: #1d2129; --ink: #e9ebf0; --ink-2: #c0c5d0; --muted: #949cab; --line: #2a2f39;
+    --accent: #3fb3a8; --accent-ink: #062321; --accent-soft: #15302e;
+    --good: #4cc38a; --good-soft: #143022; --bad: #f0776c; --bad-soft: #3a1a18; --warn: #e5a54a; --warn-soft: #34260f; --info: #8aa6ec; --info-soft: #1b2440;
+    --series-1: #3987e5; --series-2: #d95926; --bar-cost: #4a5160;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1015; --surface: #161920; --surface-2: #1d2129; --ink: #e9ebf0; --ink-2: #c0c5d0; --muted: #949cab; --line: #2a2f39;
+  --accent: #3fb3a8; --accent-ink: #062321; --accent-soft: #15302e;
+  --good: #4cc38a; --good-soft: #143022; --bad: #f0776c; --bad-soft: #3a1a18; --warn: #e5a54a; --warn-soft: #34260f; --info: #8aa6ec; --info-soft: #1b2440;
+  --series-1: #3987e5; --series-2: #d95926; --bar-cost: #4a5160;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1360px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Header */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-block: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-mark { width: 30px; height: 30px; border-radius: 7px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-family: var(--font-num); font-weight: 500; font-size: 13px; flex: none; }
+.brand h1 { font-size: 19px; font-weight: 600; letter-spacing: 0.01em; }
+.brand small { display: block; color: var(--muted); font-size: 12px; line-height: 1.3; }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 8px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 6px; cursor: pointer; color: var(--ink-2); font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); font-weight: 500; }
+.sources { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2); white-space: nowrap; }
+.chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+.chip[data-state="connected"] i { background: var(--good); }
+.chip[data-state="demo"] i { background: var(--info); }
+.chip[data-state="error"] i { background: var(--bad); }
+.chip[data-state="planned"] { border-style: dashed; color: var(--muted); }
+.chip[data-state="planned"] i { background: transparent; border: 1px solid var(--muted); }
+
+main.wrap { display: flex; flex-direction: column; gap: 20px; padding-block: 20px 48px; }
+.banner { font-size: 13px; color: var(--ink-2); background: var(--info-soft); border-radius: 8px; padding: 9px 14px; }
+.banner b { color: var(--ink); }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; min-width: 0; }
+.kpi.hero { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.kpi .label { font-size: 12px; color: var(--muted); letter-spacing: 0.02em; }
+.kpi .value { font-family: var(--font-num); font-size: 24px; font-weight: 500; margin-top: 4px; letter-spacing: -0.02em; white-space: nowrap; }
+.kpi .sub { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.delta { font-family: var(--font-num); font-size: 12px; padding: 1px 6px; border-radius: 4px; }
+.delta.up { color: var(--good); background: var(--good-soft); }
+.delta.down { color: var(--bad); background: var(--bad-soft); }
+.delta.flat { color: var(--muted); background: var(--surface-2); }
+
+/* Work area */
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 20px; align-items: start; }
+.stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 12px; }
+.panel-head h2 { font-size: 17px; font-weight: 600; }
+.panel-head p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 11px; }
+.chart .lbl-strong { fill: var(--ink); font-weight: 500; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .zero { stroke: var(--ink-2); stroke-width: 1; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px; padding: 7px 10px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); z-index: 3; line-height: 1.45; }
+.tip .num { font-size: 12px; }
+
+/* Chat */
+.chat { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 74px); display: flex; flex-direction: column; max-height: calc(100vh - 100px); min-height: 520px; padding: 0; overflow: hidden; }
+.chat-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--line); }
+.chat-head h2 { font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.chat-head p { margin: 3px 0 0; font-size: 12.5px; color: var(--muted); }
+.ai-state { font-family: var(--font-body); font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.ai-state[data-off] { background: var(--surface-2); color: var(--muted); }
+.msgs { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.msg { max-width: 100%; font-size: 13.5px; }
+.msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-ink); padding: 8px 12px; border-radius: 12px 12px 3px 12px; max-width: 88%; }
+.msg.ai { background: var(--surface-2); padding: 10px 13px; border-radius: 12px 12px 12px 3px; }
+.msg.ai p { margin: 0 0 6px; }
+.msg.ai p:last-child { margin-bottom: 0; }
+.msg.ai ul { margin: 4px 0 8px; padding-left: 18px; }
+.msg.ai li { margin: 2px 0; }
+.trace { font-size: 11.5px; color: var(--muted); margin-top: 6px; font-family: var(--font-num); }
+.thinking { color: var(--muted); font-style: italic; }
+.suggest { display: flex; flex-direction: column; gap: 6px; padding: 0 18px 10px; }
+.suggest button { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 11px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.suggest button:hover { border-color: var(--accent); color: var(--ink); }
+.composer { display: flex; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--line); }
+.composer textarea { flex: 1; resize: none; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 13.5px; min-height: 42px; max-height: 120px; }
+.btn { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 8px; padding: 0 16px; cursor: pointer; font-weight: 500; }
+.btn[disabled] { opacity: 0.5; cursor: default; }
+.btn.ghost { background: var(--surface-2); color: var(--ink); }
+
+/* Actions */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.card { position: relative; border: 1px solid var(--line); border-radius: 9px; padding: 14px 16px 14px 18px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow: hidden; }
+.card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--muted); }
+.card[data-sev="critical"]::before { background: var(--bad); }
+.card[data-sev="high"]::before { background: var(--warn); }
+.card[data-sev="medium"]::before { background: var(--info); }
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.card h3 { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.impact { text-align: right; flex: none; }
+.impact b { display: block; font-family: var(--font-num); font-weight: 500; font-size: 15px; white-space: nowrap; }
+.impact small { color: var(--muted); font-size: 11px; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { font-size: 11px; font-weight: 500; padding: 1px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.tag.problem { background: var(--bad-soft); color: var(--bad); }
+.tag.opportunity { background: var(--good-soft); color: var(--good); }
+.tag.watch { background: var(--warn-soft); color: var(--warn); }
+.tag.area { background: var(--surface-2); color: var(--ink-2); }
+.card p { margin: 0; color: var(--ink-2); font-size: 13px; }
+.card .rec { color: var(--ink); background: var(--surface-2); border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+.card .rec b { font-weight: 600; }
+.metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.metrics span b { color: var(--ink); font-family: var(--font-num); font-weight: 500; }
+.card .ask { align-self: flex-start; border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 12.5px; font-weight: 500; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin: 0 -18px; padding: 0 18px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+th { text-align: right; font-weight: 500; color: var(--muted); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+th button { border: 0; background: none; cursor: pointer; color: inherit; font: inherit; padding: 0; }
+th button[aria-sort] { color: var(--ink); }
+td { text-align: right; padding: 9px 10px; border-bottom: 1px solid var(--line); font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td:first-child { font-family: var(--font-body); white-space: normal; min-width: 220px; }
+td .meta { display: block; color: var(--muted); font-size: 11.5px; }
+tr:last-child td { border-bottom: 0; }
+.neg { color: var(--bad); }
+.pos { color: var(--good); }
+.pill { display: inline-block; font-family: var(--font-body); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.03em; }
+.pill.scale { background: var(--good-soft); color: var(--good); }
+.pill.keep { background: var(--info-soft); color: var(--info); }
+.pill.fix { background: var(--warn-soft); color: var(--warn); }
+.pill.cut { background: var(--bad-soft); color: var(--bad); }
+.plat { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 0 5px; border-radius: 3px; background: var(--surface-2); color: var(--ink-2); margin-right: 6px; letter-spacing: 0.03em; }
+.bar-cell { display: inline-block; vertical-align: middle; width: 54px; height: 6px; border-radius: 3px; background: var(--surface-2); margin-left: 8px; position: relative; overflow: hidden; }
+.bar-cell i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; }
+
+/* Architecture */
+.flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; counter-reset: step; }
+.flow > div { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--surface-2); min-width: 0; position: relative; }
+.flow h3 { font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
+.flow p { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.flow code { font-family: var(--font-num); font-size: 11.5px; color: var(--muted); }
+.foot { color: var(--muted); font-size: 12px; }
+.foot a { color: var(--accent); }
+
+@media (max-width: 1100px) {
+  .work { grid-template-columns: minmax(0, 1fr); }
+  .chat { position: static; max-height: 640px; }
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .actions { grid-template-columns: minmax(0, 1fr); }
+  .sources { margin-left: 0; }
+  .kpi .value { font-size: 20px; }
+  .flow { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card, .kpi { transition: border-color 0.15s; }
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">P&amp;L</div>
+      <div><h1>AI Profit Dashboard</h1><small id="store-name">Demo store · Swiss spare parts · CHF, net of VAT</small></div>
+    </div>
+    <div class="seg" role="group" aria-label="Period">
+      <button type="button" id="range-7" data-days="7" aria-pressed="false">7 days</button>
+      <button type="button" id="range-30" data-days="30" aria-pressed="true">30 days</button>
+      <button type="button" id="range-90" data-days="90" aria-pressed="false">90 days</button>
+    </div>
+    <div class="sources" id="sources" aria-label="Data sources"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="banner"><b>Demo data.</b> A simulated Swiss spare-parts shop (Shopify + Google Ads + Meta + GA4). Every number is computed live by the same profit engine that runs on real API data.</div>
+
+  <section class="kpis" id="kpis" aria-label="Key figures"></section>
+
+  <div class="work">
+    <div class="stack">
+      <section class="panel" aria-labelledby="wf-title">
+        <div class="panel-head">
+          <div><h2 id="wf-title">Where the money goes</h2><p>From gross sales to profit after advertising (contribution margin 3)</p></div>
+        </div>
+        <div class="chart" id="waterfall"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="daily-title">
+        <div class="panel-head">
+          <div><h2 id="daily-title">Daily profit after ads vs. ad spend</h2><p>CHF per day</p></div>
+          <div class="legend"><span><i style="background: var(--series-1)"></i>Profit after ads</span><span><i style="background: var(--series-2)"></i>Ad spend</span></div>
+        </div>
+        <div class="chart" id="daily"></div>
+      </section>
+    </div>
+
+    <aside class="panel chat" aria-labelledby="chat-title">
+      <div class="chat-head">
+        <h2 id="chat-title">Ask the profit analyst <span class="ai-state" id="ai-state">Claude</span></h2>
+        <p>Answers come from the profit engine via tool calls, never from guesses.</p>
+      </div>
+      <div class="msgs" id="msgs" aria-live="polite"></div>
+      <div class="suggest" id="suggest"></div>
+      <form class="composer" id="composer">
+        <label for="q" hidden>Question</label>
+        <textarea id="q" rows="1" placeholder="e.g. Which products should we stop advertising?"></textarea>
+        <button class="btn" id="send" type="submit">Ask</button>
+      </form>
+    </aside>
+  </div>
+
+  <section class="panel" aria-labelledby="act-title">
+    <div class="panel-head">
+      <div><h2 id="act-title">What to do now</h2><p id="act-sub">Found automatically by the monitoring engine, ranked by severity and CHF impact per month</p></div>
+      <div class="seg" role="group" aria-label="Filter" id="act-filter">
+        <button type="button" id="f-all" data-k="all" aria-pressed="true">All</button>
+        <button type="button" id="f-problem" data-k="problem" aria-pressed="false">Problems</button>
+        <button type="button" id="f-opportunity" data-k="opportunity" aria-pressed="false">Opportunities</button>
+        <button type="button" id="f-watch" data-k="watch" aria-pressed="false">Watch</button>
+      </div>
+    </div>
+    <div class="actions" id="actions"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="camp-title">
+    <div class="panel-head">
+      <div><h2 id="camp-title">Campaigns: platform claims vs. real profit</h2><p>True ROAS = Shopify-confirmed net sales ÷ spend · POAS = contribution before ads ÷ spend (above 1.00 the campaign earns money)</p></div>
+    </div>
+    <div class="table-wrap"><table id="campaigns"></table></div>
+  </section>
+
+  <section class="panel" aria-labelledby="prod-title">
+    <div class="panel-head">
+      <div><h2 id="prod-title">Products after all costs</h2><p>COGS, shipping, payment fees, returns and allocated ad spend. Click a column to sort.</p></div>
+    </div>
+    <div class="table-wrap"><table id="products"></table></div>
+  </section>
+
+  <section class="panel" aria-labelledby="arch-title">
+    <div class="panel-head"><div><h2 id="arch-title">How it works</h2><p>Each layer is independent, so new sources and new checks plug in without touching the rest.</p></div></div>
+    <div class="flow">
+      <div><h3>1 · Connectors</h3><p>Shopify, Google Ads, Meta, GA4 today; Merchant Center and TikTok are one file each.</p><code>src/connectors/*</code></div>
+      <div><h3>2 · Canonical model</h3><p>Orders, refunds, products with landed cost, ad spend per campaign/day, traffic.</p><code>src/core/types.ts</code></div>
+      <div><h3>3 · Profit engine</h3><p>CM1 → CM2 → CM3 per product, campaign and channel. Ad spend allocated by Shopify-confirmed revenue.</p><code>src/engine/profit.ts</code></div>
+      <div><h3>4 · Detectors</h3><p>Loss-makers, capped winners, CPC spikes, stock-outs, attribution gaps, shipping leaks. Hourly, with Slack alerts.</p><code>src/engine/insights.ts</code></div>
+      <div><h3>5 · AI analyst</h3><p>Claude answers questions and writes the daily briefing by calling engine tools, so every figure is traceable.</p><code>src/ai/*</code></div>
+    </div>
+  </section>
+
+  <p class="foot" id="foot"></p>
+</main>
+
+<script src="app.js"></script>
