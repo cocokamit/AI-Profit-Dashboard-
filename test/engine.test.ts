@@ -58,3 +58,14 @@ test("every AI tool runs and returns JSON-serialisable data", () => {
   const sim = runTool(ctx, "simulate_budget_change", { campaign: "Prospecting", new_daily_budget: 0 }) as { monthly_profit_change: number };
   assert.ok(sim.monthly_profit_change > 0, "pausing a loss-making campaign must improve profit");
 });
+
+test("offline answers cover the standard questions", async () => {
+  const { answerOffline } = await import("../src/ai/offline.ts");
+  const insights = detectInsights(a, ds);
+  const ctx = { analysis: a, insights, dataset: ds };
+  assert.match(answerOffline("Which products are the most profitable after deducting all costs?", ctx), /most profitable product/);
+  assert.match(answerOffline("Where are we currently losing money?", ctx), /per month\*\* in/);
+  assert.match(answerOffline("Which marketing budgets should we optimize?", ctx), /Cut .*Prospecting/);
+  assert.match(answerOffline("Was sollten wir diese Woche als Erstes tun?", ctx), /Massnahmen/);
+  assert.match(answerOffline(`Explain this finding: "${insights[0]!.title}"`, ctx), /Next step/);
+});

@@ -9,6 +9,7 @@ import type { Analysis, CampaignRow, ProductRow } from "../../src/engine/profit.
 import type { Insight } from "../../src/engine/insights.ts";
 import type { SourceStatus } from "../../src/core/types.ts";
 import { SYSTEM_PROMPT, TOOLS, runTool, type ToolContext } from "../../src/ai/tools.ts";
+import { answerOffline } from "../../src/ai/offline.ts";
 
 declare const EMBEDDED: boolean;
 
@@ -40,7 +41,7 @@ let days = 30;
 let data: DashboardData | undefined;
 let actionFilter = "all";
 let productSort: { key: keyof ProductRow; dir: 1 | -1 } = { key: "cm3", dir: 1 };
-let aiMode: "sample" | "server" | "none" = "none";
+let aiMode: "sample" | "server" | "offline" = "offline";
 let sampleFn: any = null;
 
 try {
@@ -73,7 +74,7 @@ async function loadData(d: number): Promise<DashboardData> {
   const res = await fetch(`api/dashboard?days=${d}`);
   if (!res.ok) throw new Error(`Dashboard API returned ${res.status}`);
   const body = await res.json();
-  aiMode = body.ai === "server" ? "server" : aiMode;
+  aiMode = body.ai === "server" ? "server" : "offline";
   return body;
 }
 
@@ -363,7 +364,7 @@ function renderSuggestions() {
 
 function setAiState() {
   const el = $("ai-state");
-  if (aiMode === "none") { el.textContent = "offline"; el.setAttribute("data-off", ""); }
+  if (aiMode === "offline") { el.textContent = "rules mode"; el.setAttribute("data-off", ""); el.title = "Claude is not connected in this view; answers come from fixed rules over the profit engine."; }
   else { el.textContent = aiMode === "sample" ? "Claude" : "Claude · server"; el.removeAttribute("data-off"); }
 }
 
@@ -372,9 +373,12 @@ async function ask(question: string) {
   if (!data) return;
   question = question.trim();
   if (!question) return;
-  if (aiMode === "none") {
+  if (aiMode === "offline" && data.ctx) {
+    // Embedded view without Claude: answer from the engine directly.
     addMsg("user", esc(question));
-    addMsg("ai", `<p>The AI analyst is not connected here. On the server, set <code>ANTHROPIC_API_KEY</code>. The findings below are computed without AI and are always available.</p>`);
+    addMsg("ai", mdLite(answerOffline(question, data.ctx)));
+    turns.push({ role: "user", content: question });
+    renderSuggestions();
     return;
   }
   busy = true;
@@ -421,15 +425,22 @@ async function ask(question: string) {
     turns.pop();
     const copy: Record<string, string> = {
       cancelled: "Stopped.",
-      not_granted: "Claude access was not allowed for this page, so the analyst is off. The findings below still work.",
+      not_granted: "Claude access was not allowed for this page. Switching to rules-based answers.",
       rate_limited: "Too many questions in a short time. Try again in a minute.",
-      tools_unavailable: "This viewer cannot run the analyst's tools. Open the page in claude.ai in a browser.",
-      sampling_disabled: "Claude is not available for this account.",
+      tools_unavailable: "This viewer cannot run the analyst's tools. Switching to rules-based answers.",
+      sampling_disabled: "Claude is not available for this account. Switching to rules-based answers.",
       refused: "Claude declined this question. Try rephrasing it.",
     };
     const msg = copy[e?.code] ?? (e?.message ? esc(String(e.message)) : "Something went wrong. Try again.");
-    bubble.innerHTML = (e?.text ? mdLite(e.text) : "") + `<p class="thinking">${msg}</p>`;
-    if (e?.code === "not_granted" || e?.code === "sampling_disabled" || e?.code === "tools_unavailable") { aiMode = "none"; setAiState(); }
+    const permanent = e?.code === "not_granted" || e?.code === "sampling_disabled" || e?.code === "tools_unavailable";
+    if (permanent && data.ctx) {
+      aiMode = "offline";
+      setAiState();
+      bubble.innerHTML = `<p class="thinking">${msg}</p>` + mdLite(answerOffline(question, data.ctx));
+      turns.push({ role: "user", content: question });
+    } else {
+      bubble.innerHTML = (e?.text ? mdLite(e.text) : "") + `<p class="thinking">${msg}</p>`;
+    }
   } finally {
     busy = false;
     ctl = undefined;

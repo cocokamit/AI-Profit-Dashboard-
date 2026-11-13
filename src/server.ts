@@ -12,6 +12,7 @@ import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAnalysis, getDataset } from "./service.ts";
 import { aiAvailable, askAnalyst, type ChatTurn } from "./ai/agent.ts";
+import { answerOffline } from "./ai/offline.ts";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const WEB = join(here, "..", "web", "dist");
@@ -44,7 +45,7 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === "/api/dashboard" && req.method === "GET") {
       const { ds, analysis, insights } = await getAnalysis(clampDays(url.searchParams.get("days")));
-      return json(res, 200, { analysis, insights, sources: ds.sources, ai: aiAvailable() ? "server" : "none" });
+      return json(res, 200, { analysis, insights, sources: ds.sources, ai: aiAvailable() ? "server" : "offline" });
     }
 
     if (url.pathname === "/api/refresh" && req.method === "POST") {
@@ -53,7 +54,6 @@ const server = createServer(async (req, res) => {
     }
 
     if (url.pathname === "/api/chat" && req.method === "POST") {
-      if (!aiAvailable()) return json(res, 503, { error: "AI is not configured. Set ANTHROPIC_API_KEY and restart." });
       const body = (await readBody(req)) as { days?: number; messages?: ChatTurn[] };
       const history = (body.messages ?? [])
         .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
@@ -61,7 +61,10 @@ const server = createServer(async (req, res) => {
         .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
       if (!history.length || history[history.length - 1]!.role !== "user") return json(res, 400, { error: "messages must end with a user message" });
       const { ds, analysis, insights } = await getAnalysis(clampDays(body.days));
-      const out = await askAnalyst({ analysis, insights, dataset: ds }, history);
+      const ctx = { analysis, insights, dataset: ds };
+      // Without an API key the chat still answers the core questions from the engine.
+      if (!aiAvailable()) return json(res, 200, { text: answerOffline(history[history.length - 1]!.content, ctx), toolCalls: [], offline: true });
+      const out = await askAnalyst(ctx, history);
       return json(res, 200, out);
     }
 

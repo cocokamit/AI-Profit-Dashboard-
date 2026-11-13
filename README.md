@@ -14,7 +14,10 @@ npm start                  # http://localhost:3000 (demo data, no keys needed)
 ANTHROPIC_API_KEY=... npm start   # adds the AI analyst
 npm run monitor            # one proactive monitoring pass (alerts + AI briefing)
 npm test                   # engine invariants + detector + tool tests
+docker build -t profit-dashboard . && docker run -p 3000:3000 -e ANTHROPIC_API_KEY=... profit-dashboard
 ```
+
+Without an API key (or when a demo viewer is not signed in to Claude), the chat switches to **rules mode**. It answers the standard questions (most profitable products, where money is lost, budget changes, weekly priorities, any finding) straight from the engine and labels the answer as rules-based.
 
 Requires Node ≥ 22.18. TypeScript runs natively, so there is no compile step for the server.
 
@@ -27,7 +30,7 @@ Requires Node ≥ 22.18. TypeScript runs natively, so there is no compile step f
 | **3. Profit engine** | Contribution margins per product, campaign and channel (see below). Pure functions that run on the server and in the browser. | `src/engine/profit.ts` |
 | **4. Detectors** | Deterministic checks with a CHF/month impact and a concrete action each. They run hourly without an LLM. | `src/engine/insights.ts` |
 | **5. AI analyst** | Claude answers questions and writes the daily briefing by **calling engine tools**. It never invents or calculates numbers itself, so every figure can be traced. | `src/ai/` |
-| **6. Delivery** | Dashboard, chat, Slack alerts, daily briefing. | `web/`, `src/server.ts`, `src/jobs/monitor.ts` |
+| **6. Delivery** | Dashboard, chat, Slack alerts, daily briefing. The monitor runs as a long-lived process or hourly through GitHub Actions (`.github/workflows/monitor.yml`). | `web/`, `src/server.ts`, `src/jobs/monitor.ts` |
 
 ### The profit model
 
@@ -95,9 +98,11 @@ For attribution, Shopify's last-visit UTM parameters connect orders to campaigns
 src/core/          canonical types, connector interface + registry
 src/connectors/    shopify, google-ads, meta, ga4, demo-data (seeded simulation)
 src/engine/        profit.ts (margins), insights.ts (detectors)
-src/ai/            tools.ts (shared tool definitions + system prompt), agent.ts (Claude tool loop)
+src/ai/            tools.ts (shared tool definitions + system prompt), agent.ts (Claude tool loop),
+                   offline.ts (rules-mode answers when no LLM is available)
 src/server.ts      HTTP API + static dashboard
 src/jobs/          monitor.ts (hourly detection, Slack alerts, daily AI briefing)
 web/               dashboard (page.html + src/main.ts), built by scripts/build.ts
-test/              engine invariants, detector and tool tests
+test/              engine invariants, detector, tool and rules-mode tests
+.github/workflows/ ci.yml (typecheck, tests, build), monitor.yml (hourly monitoring)
 ```
