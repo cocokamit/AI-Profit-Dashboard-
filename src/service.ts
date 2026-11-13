@@ -8,6 +8,7 @@ import { analyze, type Analysis } from "./engine/profit.ts";
 import { detectInsights, type Insight } from "./engine/insights.ts";
 import { DEFAULT_COSTS, type CostConfig, type Dataset } from "./core/types.ts";
 import { addDays, isoDay } from "./connectors/demo-data.ts";
+import type { Lang } from "./i18n/index.ts";
 
 const registry = createRegistry();
 const CACHE_MS = 10 * 60 * 1000;
@@ -38,9 +39,9 @@ export async function getDataset(force = false): Promise<Dataset> {
   return ds;
 }
 
-export async function getAnalysis(days: number, force = false): Promise<{ ds: Dataset; analysis: Analysis; insights: Insight[] }> {
+export async function getAnalysis(days: number, force = false, lang: Lang = "en"): Promise<{ ds: Dataset; analysis: Analysis; insights: Insight[] }> {
   const ds = await getDataset(force);
   const to = lastCompleteDay();
   const analysis = analyze(ds, { from: addDays(to, -(days - 1)), to }, costConfig());
-  return { ds, analysis, insights: detectInsights(analysis, ds) };
+  return { ds, analysis, insights: detectInsights(analysis, ds, lang) };
 }

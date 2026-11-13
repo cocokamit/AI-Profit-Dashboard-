@@ -11,7 +11,8 @@ import type { Insight } from "../../src/engine/insights.ts";
 import type { Dataset, SourceStatus } from "../../src/core/types.ts";
 import { SYSTEM_PROMPT, TOOLS, runTool, type ToolContext } from "../../src/ai/tools.ts";
 import { answerOffline } from "../../src/ai/offline.ts";
-import { initHelp, termButton } from "./help.ts";
+import { initHelp, setHelpLanguage, termButton } from "./help.ts";
+import { LANGS, isLang, localeOf, makeT, pickLang, type Key, type Lang, type T } from "../../src/i18n/index.ts";
 import { mountGear3D } from "./gear3d.ts";
 
 declare const EMBEDDED: boolean;
@@ -72,11 +73,49 @@ const expanded = new Set<string>();
 const done = new Set<string>(JSON.parse(store.get("apd-done") ?? "[]") as string[]);
 let productSort: { key: keyof ProductRow; dir: 1 | -1 } = { key: "cm3", dir: 1 };
 let productQuery = "";
-let productCat = "All";
+let productCat = "All"; // sentinel for "no category filter"
 const openProducts = new Set<string>();
 const seriesOn: Record<string, boolean> = { cm3: true, adSpend: true };
 const simBudget = new Map<string, number>();
 let aiMode: "sample" | "server" | "offline" = "offline";
+
+// ---------- language ----------
+// Saved choice, else the browser's language, else English.
+const savedLang = store.get("apd-lang");
+let lang: Lang = isLang(savedLang) ? savedLang : pickLang(navigator.languages ?? [navigator.language]);
+let tr: T = makeT(lang);
+
+/** Fills every element marked with data-i18n / -html / -ph / -aria from the dictionary. */
+function applyStatic() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => { el.textContent = tr(el.dataset.i18n as Key); });
+  document.querySelectorAll<HTMLElement>("[data-i18n-html]").forEach((el) => { el.innerHTML = tr(el.dataset.i18nHtml as Key); });
+  document.querySelectorAll<HTMLInputElement>("[data-i18n-ph]").forEach((el) => { el.placeholder = tr(el.dataset.i18nPh as Key); });
+  document.querySelectorAll<HTMLElement>("[data-i18n-aria]").forEach((el) => { el.setAttribute("aria-label", tr(el.dataset.i18nAria as Key)); });
+  document.querySelectorAll<HTMLButtonElement>("#range button").forEach((b) => { b.textContent = tr("range.d", { n: b.dataset.days! }); });
+  if (!busy) $("send").textContent = tr("chat.ask");
+}
+
+/** Splits a chart label into at most two short lines; spaces and soft hyphens are break points. */
+function wrapLabel(label: string, max = 11): string[] {
+  const tokens: { text: string; sep: string }[] = [];
+  let buf = "";
+  for (const ch of label) {
+    if (ch === " " || ch === "\u00ad") { tokens.push({ text: buf, sep: ch === " " ? " " : "-" }); buf = ""; }
+    else buf += ch;
+  }
+  tokens.push({ text: buf, sep: "" });
+  const lines: string[] = [];
+  let cur = "", pendingSep = "";
+  for (const tk of tokens) {
+    const candidate = cur ? cur + (pendingSep === " " ? " " : "") + tk.text : tk.text;
+    if (cur && candidate.length > max) { lines.push(cur + (pendingSep === "-" ? "-" : "")); cur = tk.text; }
+    else cur = candidate;
+    pendingSep = tk.sep;
+  }
+  if (cur) lines.push(cur);
+  return lines.length > 2 ? [lines[0]!, lines.slice(1).join(" ")] : lines;
+}
 let sampleFn: any = null;
 
 // ---------- data ----------
@@ -98,10 +137,10 @@ async function loadData(d: number): Promise<DashboardData> {
     ];
     const dataset: Dataset = { currency: "CHF", ...world, sources, generatedAt: new Date().toISOString() };
     const analysis = analyze(dataset, { from: addDays(to, -(d - 1)), to }, DEFAULT_COSTS);
-    const insights = detectInsights(analysis, dataset);
+    const insights = detectInsights(analysis, dataset, lang);
     return { analysis, insights, sources, ctx: { analysis, insights, dataset } };
   }
-  const res = await fetch(`api/dashboard?days=${d}`);
+  const res = await fetch(`api/dashboard?days=${d}&lang=${lang}`);
   if (!res.ok) throw new Error(`Dashboard API returned ${res.status}`);
   const body = await res.json();
   aiMode = body.ai === "server" ? "server" : "offline";
@@ -139,17 +178,16 @@ function attachTip(container: HTMLElement) {
 // ---------- hero ----------
 function renderHero(a: Analysis, sources: SourceStatus[]) {
   const t = a.totals;
-  $("hero-label").textContent = `Profit after ads · last ${days} days`;
+  $("hero-label").textContent = tr("hero.label", { days });
   const numEl = $("hero-num").querySelector("span")!;
   countTo(numEl, "hero", t.cm3, (n) => fmtInt.format(Math.round(n)), 1100);
   const p = a.previous;
   const d = p && p.cm3 ? (t.cm3 - p.cm3) / Math.abs(p.cm3) : null;
   $("hero-meta").innerHTML = `
-    ${d === null ? "" : `<span class="delta ${d >= 0 ? "up" : "down"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d * 100).toFixed(1)}% vs previous ${days}d</span>`}
-    <span><b class="num">${pct(t.cm3 / (t.netSales || 1), 1)}</b> margin on <b class="num">${chf(t.netSales)}</b> net sales</span>
-    <span><b class="num">${fmtInt.format(Math.round(t.orders))}</b> orders</span>`;
-  const label: Record<string, string> = { connected: "live", demo: "demo data", planned: "planned", error: "error" };
-  $("sources").innerHTML = sources.map((s) => `<span class="chip" data-state="${s.state}" title="${esc(s.detail ?? `${s.label}: ${label[s.state]}`)}"><i></i>${esc(s.label)}</span>`).join("");
+    ${d === null ? "" : `<span class="delta ${d >= 0 ? "up" : "down"}">${esc(tr("hero.vsPrev", { arrow: d >= 0 ? "▲" : "▼", pct: `${Math.abs(d * 100).toFixed(1)}%`, days }))}</span>`}
+    <span>${tr("hero.margin", { pct: `<b class="num">${pct(t.cm3 / (t.netSales || 1), 1)}</b>`, sales: `<b class="num">${chf(t.netSales)}</b>` })}</span>
+    <span>${tr("hero.orders", { n: `<b class="num">${fmtInt.format(Math.round(t.orders))}</b>` })}</span>`;
+  $("sources").innerHTML = sources.map((s) => `<span class="chip" data-state="${s.state}" title="${esc(s.detail ?? `${s.label}: ${tr(`src.${s.state}` as Key)}`)}"><i></i>${esc(s.label)}</span>`).join("");
   $("banner").hidden = sources.some((s) => s.state === "connected");
   renderHeroSpark(a);
 }
@@ -163,7 +201,7 @@ function renderHeroSpark(a: Analysis) {
   const x = (i: number) => (rows.length > 1 ? (i / (rows.length - 1)) * W : W / 2);
   const y = (v: number) => 8 + (H - 8) * (1 - (v - lo) / (hi - lo));
   const line = rows.map((r, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(r.cm3).toFixed(1)}`).join("");
-  el.innerHTML = `<svg class="wipe" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Daily profit after ads">
+  el.innerHTML = `<svg class="wipe" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(tr("daily.profit"))}">
     <defs><linearGradient id="hg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.28"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
     <path d="${line}L${W},${H}L0,${H}Z" fill="url(#hg)"/>
     <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
@@ -178,9 +216,9 @@ function renderFocus(list: Insight[]) {
   $("focus-list").innerHTML = top.map((i, n) => `
     <button type="button" class="focus-item rise" style="--i:${n + 2}" data-id="${esc(i.id)}">
       <span class="sev" style="background:${sevColor[i.severity]}"></span>
-      <span><b>${esc(i.title)}</b><small>${esc(i.kind)} · ${esc(i.area)}</small></span>
-      <span class="amt">${chf(i.impactMonthly)}<small style="display:block;text-align:right">/ month</small></span>
-    </button>`).join("") || `<p class="empty">All top findings are done. Nice work.</p>`;
+      <span><b>${esc(i.title)}</b><small>${esc(tr(`kind.${i.kind}` as Key))} · ${esc(tr(`area.${i.area}` as Key))}</small></span>
+      <span class="amt">${chf(i.impactMonthly)}<small style="display:block;text-align:right">${esc(tr("per.monthShort"))}</small></span>
+    </button>`).join("") || `<p class="empty">${esc(tr("focus.empty"))}</p>`;
   $("focus-list").querySelectorAll<HTMLButtonElement>(".focus-item").forEach((b) => b.addEventListener("click", () => openFinding(b.dataset.id!)));
   updateRing(list);
 }
@@ -191,8 +229,8 @@ function updateRing(list: Insight[]) {
   const share = atStake ? captured / atStake : 0;
   $("ring-val").setAttribute("stroke-dashoffset", String(100 - share * 100));
   $("ring-txt").textContent = pct(share);
-  $("focus-sub").textContent = `${chf(atStake)}/month at stake · ${chf(captured)} handled`;
-  $("progress").innerHTML = `<span><b class="num">${chf(captured)}</b> of <b class="num">${chf(atStake)}</b> per month handled</span><span class="bar"><i style="width:${(share * 100).toFixed(1)}%"></i></span><span>${list.filter((i) => done.has(i.id)).length} / ${list.length} done</span>`;
+  $("focus-sub").textContent = tr("focus.sub", { stake: chf(atStake), done: chf(captured) });
+  $("progress").innerHTML = `<span>${tr("progress.handled", { done: `<b class="num">${chf(captured)}</b>`, stake: `<b class="num">${chf(atStake)}</b>` })}</span><span class="bar"><i style="width:${(share * 100).toFixed(1)}%"></i></span><span>${esc(tr("progress.count", { n: list.filter((i) => done.has(i.id)).length, total: list.length }))}</span>`;
 }
 
 function openFinding(id: string) {
@@ -238,11 +276,11 @@ function renderKpis(a: Analysis) {
   const ret = t.units ? t.refundedUnits / t.units : 0;
   const retPrev = p && p.units ? p.refundedUnits / p.units : undefined;
   $("kpis").innerHTML = `
-    <div class="card-s kpi rise" style="--i:2"><div class="label"><span>Net sales${termButton("net-sales")}</span>${delta(t.netSales, p?.netSales)}</div><div class="value" id="k-sales"></div><div class="sub">after discounts and refunds</div><div class="spark">${spark(a.daily.map((d) => d.netSales), "var(--series-1)")}</div></div>
-    <div class="card-s kpi rise" style="--i:3"><div class="label"><span>Ad spend${termButton("ad-spend")}</span>${delta(t.adSpend, p?.adSpend, false)}</div><div class="value" id="k-ads"></div><div class="sub">${pct(t.adSpend / (t.netSales || 1), 1)} of net sales</div><div class="spark">${spark(a.daily.map((d) => d.adSpend), "var(--series-2)")}</div></div>
-    <div class="card-s kpi rise" style="--i:4"><div class="label"><span>Paid POAS${termButton("poas")}</span></div><div class="value" id="k-poas"></div><div class="sub">contribution per CHF 1 of ads</div>
-      <div class="meter"><i style="width:${Math.min(100, (poas / 3) * 100)}%;background:${poas >= 1 ? "var(--good)" : "var(--bad)"}"></i><span class="mark" style="left:33.3%" title="break-even 1.00x"></span></div><div class="meter-cap"><span>0</span><span>break-even 1.0x</span><span>3.0x</span></div></div>
-    <div class="card-s kpi rise" style="--i:5"><div class="label"><span>Return rate${termButton("return-rate")}</span>${retPrev !== undefined ? delta(ret, retPrev, false) : ""}</div><div class="value" id="k-ret"></div><div class="sub">${chf(t.refunds)} refunded</div>
+    <div class="card-s kpi rise" style="--i:2"><div class="label"><span>${esc(tr("kpi.netSales"))}${termButton("net-sales")}</span>${delta(t.netSales, p?.netSales)}</div><div class="value" id="k-sales"></div><div class="sub">${esc(tr("kpi.netSalesSub"))}</div><div class="spark">${spark(a.daily.map((d) => d.netSales), "var(--series-1)")}</div></div>
+    <div class="card-s kpi rise" style="--i:3"><div class="label"><span>${esc(tr("kpi.ads"))}${termButton("ad-spend")}</span>${delta(t.adSpend, p?.adSpend, false)}</div><div class="value" id="k-ads"></div><div class="sub">${esc(tr("kpi.adsSub", { pct: pct(t.adSpend / (t.netSales || 1), 1) }))}</div><div class="spark">${spark(a.daily.map((d) => d.adSpend), "var(--series-2)")}</div></div>
+    <div class="card-s kpi rise" style="--i:4"><div class="label"><span>${esc(tr("kpi.poas"))}${termButton("poas")}</span></div><div class="value" id="k-poas"></div><div class="sub">${esc(tr("kpi.poasSub"))}</div>
+      <div class="meter"><i style="width:${Math.min(100, (poas / 3) * 100)}%;background:${poas >= 1 ? "var(--good)" : "var(--bad)"}"></i><span class="mark" style="left:33.3%" title="${esc(tr("kpi.breakEven"))}"></span></div><div class="meter-cap"><span>0</span><span>${esc(tr("kpi.breakEven"))}</span><span>3.0x</span></div></div>
+    <div class="card-s kpi rise" style="--i:5"><div class="label"><span>${esc(tr("kpi.ret"))}${termButton("return-rate")}</span>${retPrev !== undefined ? delta(ret, retPrev, false) : ""}</div><div class="value" id="k-ret"></div><div class="sub">${esc(tr("kpi.retSub", { amt: chf(t.refunds) }))}</div>
       <div class="meter"><i style="width:${Math.min(100, (ret / 0.1) * 100)}%;background:${ret > 0.06 ? "var(--warn)" : "var(--accent)"}"></i><span class="mark" style="left:50%" title="5% benchmark"></span></div><div class="meter-cap"><span>0%</span><span>5%</span><span>10%</span></div></div>`;
   countTo($("k-sales"), "k-sales", t.netSales, chf);
   countTo($("k-ads"), "k-ads", t.adSpend, chf);
@@ -254,15 +292,15 @@ function renderKpis(a: Analysis) {
 function renderWaterfall(a: Analysis) {
   const t = a.totals;
   const steps = [
-    { label: "Gross sales", v: t.grossSales, kind: "total" },
-    { label: "Refunds", v: -t.refunds },
-    { label: "Cost of goods", v: -t.cogs },
-    { label: "Shipping", v: -t.shipping },
-    { label: "Pick & pack", v: -t.pickPack },
-    { label: "Payment fees", v: -t.paymentFees },
-    { label: "Return handling", v: -t.returnHandling },
-    { label: "Ad spend", v: -t.adSpend },
-    { label: "Profit", v: t.cm3, kind: "result" },
+    { label: tr("wf.gross"), v: t.grossSales, kind: "total" },
+    { label: tr("wf.refunds"), v: -t.refunds },
+    { label: tr("wf.cogs"), v: -t.cogs },
+    { label: tr("wf.shipping"), v: -t.shipping },
+    { label: tr("wf.pick"), v: -t.pickPack },
+    { label: tr("wf.fees"), v: -t.paymentFees },
+    { label: tr("wf.retHandling"), v: -t.returnHandling },
+    { label: tr("wf.ads"), v: -t.adSpend },
+    { label: tr("wf.profit"), v: t.cm3, kind: "result" },
   ];
   const W = 760, H = 300, L = 8, R = 8, T = 24, B = 46;
   const max = t.grossSales * 1.04;
@@ -279,7 +317,7 @@ function renderWaterfall(a: Analysis) {
   });
   const grid = [0.25, 0.5, 0.75, 1].map((f) => (max * f) / 1.04).map((v) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`).join("");
   const el = $("waterfall");
-  el.innerHTML = `<svg class="wf-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Profit bridge from gross sales to profit after ads">
+  el.innerHTML = `<svg class="wf-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(tr("wf.aria"))}">
     <defs>
       <linearGradient id="wf-total" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--series-1)"/><stop offset="1" stop-color="var(--series-1)" stop-opacity="0.75"/></linearGradient>
       <linearGradient id="wf-res" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--good)"/></linearGradient>
@@ -291,12 +329,12 @@ function renderWaterfall(a: Analysis) {
       const h = Math.max(2, b.y2 - b.y1);
       const fill = b.kind === "total" ? "url(#wf-total)" : b.kind === "result" ? (b.v >= 0 ? "url(#wf-res)" : "var(--bad)") : "var(--bar-cost)";
       const cls = b.kind ? "wf-bar" : "wf-bar neg";
-      const words = b.label.split(" ");
+      const words = wrapLabel(b.label);
       return `<g class="wf-g" data-i="${b.i}" style="--i:${b.i}">
         <rect class="${cls}" x="${b.x}" y="${b.y1}" width="${bw}" height="${h}" rx="4" fill="${fill}"/>
         <text x="${b.x + bw / 2}" y="${b.y1 - 7}" text-anchor="middle" class="${b.kind ? "lbl-strong" : ""}">${b.v < 0 ? "−" : ""}${chfShort(Math.abs(b.v))}</text>
-        <text x="${b.x + bw / 2}" y="${H - B + 18}" text-anchor="middle">${words[0]}</text>
-        ${words.length > 1 ? `<text x="${b.x + bw / 2}" y="${H - B + 32}" text-anchor="middle">${words.slice(1).join(" ")}</text>` : ""}
+        <text x="${b.x + bw / 2}" y="${H - B + 18}" text-anchor="middle">${esc(words[0] ?? "")}</text>
+        ${words.length > 1 ? `<text x="${b.x + bw / 2}" y="${H - B + 32}" text-anchor="middle">${esc(words[1]!)}</text>` : ""}
         <rect x="${L + slot * b.i}" y="0" width="${slot}" height="${H}" fill="transparent"/>
       </g>`;
     }).join("")}
@@ -306,7 +344,7 @@ function renderWaterfall(a: Analysis) {
     const b = bars[Number(g.dataset.i)]!;
     g.addEventListener("pointerenter", () => {
       const scale = el.clientWidth / W;
-      tip.show((b.x + bw / 2) * scale, b.y1 * scale, `<b>${esc(b.label)}</b><br><span class="num">${chf(b.v)} · ${pct(Math.abs(b.v) / (t.netSales || 1), 1)} of net sales</span>`);
+      tip.show((b.x + bw / 2) * scale, b.y1 * scale, `<b>${esc(b.label.replace(/\u00ad/g, ""))}</b><br><span class="num">${esc(tr("wf.tip", { amt: chf(b.v), pct: pct(Math.abs(b.v) / (t.netSales || 1), 1) }))}</span>`);
     });
     g.addEventListener("pointerleave", () => tip.hide());
   });
@@ -332,7 +370,7 @@ function renderDaily(a: Analysis) {
   let lyA = y(last.cm3), lyB = y(last.adSpend);
   if (Math.abs(lyA - lyB) < 14) { const mid = (lyA + lyB) / 2; const up = lyA <= lyB; lyA = mid + (up ? -7 : 7); lyB = mid + (up ? 7 : -7); }
   const el = $("daily");
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily profit after ads and ad spend">
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(tr("daily.title"))}">
     <defs><linearGradient id="dg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--series-1)" stop-opacity="0.2"/><stop offset="1" stop-color="var(--series-1)" stop-opacity="0"/></linearGradient></defs>
     ${ticks.map((v) => `<line class="${v === 0 ? "zero" : "grid"}" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${chfShort(v)}</text>`).join("")}
     ${rows.map((r, i) => (i % labelEvery === 0 ? `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${r.date.slice(8, 10)}.${r.date.slice(5, 7)}.</text>` : "")).join("")}
@@ -366,8 +404,8 @@ function renderDaily(a: Analysis) {
     }
     xh.setAttribute("x1", String(x(i))); xh.setAttribute("x2", String(x(i))); xh.setAttribute("visibility", "visible");
     tip.show(x(i) * scale, Math.min(y(r.cm3), y(r.adSpend)) * scale,
-      `<b>${new Date(r.date + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</b><br>
-       <span class="num"><i style="background:var(--series-1)"></i>Profit after ads ${chf(r.cm3)}<br><i style="background:var(--series-2)"></i>Ad spend ${chf(r.adSpend)}<br>Net sales ${chf(r.netSales)} · ${r.orders} orders</span>`);
+      `<b>${new Date(r.date + "T00:00:00Z").toLocaleDateString(localeOf(lang), { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</b><br>
+       <span class="num"><i style="background:var(--series-1)"></i>${esc(tr("daily.profit"))} ${chf(r.cm3)}<br><i style="background:var(--series-2)"></i>${esc(tr("daily.ads"))} ${chf(r.adSpend)}<br>${esc(tr("daily.tipSales", { amt: chf(r.netSales), n: r.orders }))}</span>`);
   });
   s.querySelector("#hit")!.addEventListener("pointerleave", () => { tip.hide(); [xh, ca, cb].forEach((n) => n.setAttribute("visibility", "hidden")); });
 }
@@ -385,23 +423,23 @@ function renderActions(list: Insight[]) {
     <article class="card rise" style="--i:${Math.min(n, 8)}" data-sev="${i.severity}" data-id="${esc(i.id)}" aria-expanded="${open}">
       <button type="button" class="card-btn" aria-controls="b-${esc(i.id)}">
         <div>
-          <div class="tags"><span class="tag ${i.kind}">${i.kind}</span><span class="tag area">${i.area}</span><span class="tag area">${i.severity}</span></div>
+          <div class="tags"><span class="tag ${i.kind}">${esc(tr(`kind.${i.kind}` as Key))}</span><span class="tag area">${esc(tr(`area.${i.area}` as Key))}</span><span class="tag area">${esc(tr(`sev.${i.severity}` as Key))}</span></div>
           <h3>${esc(i.title)}</h3>
           <p class="lead">${esc(i.summary)}</p>
         </div>
-        <div>${i.impactMonthly > 0 ? `<div class="impact"><b>${chf(i.impactMonthly)}</b><small>per month</small></div>` : ""}${chevron}</div>
+        <div>${i.impactMonthly > 0 ? `<div class="impact"><b>${chf(i.impactMonthly)}</b><small>${esc(tr("per.month"))}</small></div>` : ""}${chevron}</div>
       </button>
       <div class="card-body" id="b-${esc(i.id)}"><div><div class="card-inner">
-        <div class="rec"><b>Do this:</b> ${esc(i.recommendation)}</div>
+        <div class="rec"><b>${esc(tr("card.do"))}</b> ${esc(i.recommendation)}</div>
         <div class="metrics">${Object.entries(i.metrics).map(([k, v]) => `<div>${esc(k)}<b title="${esc(v)}">${esc(v)}</b></div>`).join("")}</div>
         <div class="card-actions">
-          <label class="check"><input type="checkbox" data-done="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> Mark as done</label>
-          ${isCampaign ? `<button type="button" class="btn ghost sm" data-sim="${esc(i.entity!.id)}">Simulate budget</button>` : ""}
-          <button type="button" class="btn sm" data-ask="${esc(`Explain this finding and what exactly I should change: "${i.title}"`)}">Ask the analyst</button>
+          <label class="check"><input type="checkbox" data-done="${esc(i.id)}" ${done.has(i.id) ? "checked" : ""}> ${esc(tr("card.done"))}</label>
+          ${isCampaign ? `<button type="button" class="btn ghost sm" data-sim="${esc(i.entity!.id)}">${esc(tr("card.sim"))}</button>` : ""}
+          <button type="button" class="btn sm" data-ask="${esc(tr("card.askQ", { title: i.title }))}">${esc(tr("card.ask"))}</button>
         </div>
       </div></div></div>
     </article>`;
-  }).join("") || `<p class="empty">Nothing in this category for the selected period.</p>`;
+  }).join("") || `<p class="empty">${esc(tr("act.empty"))}</p>`;
 
   const root = $("action-list");
   root.querySelectorAll<HTMLButtonElement>(".card-btn").forEach((b) => b.addEventListener("click", () => {
@@ -449,9 +487,9 @@ function renderSimulator(a: Analysis) {
     simBudget.set(c.id, cur);
     const max = Math.max(50, Math.ceil((cur * 3) / 10) * 10);
     return `<div class="sim-row" data-id="${esc(c.id)}">
-      <div class="name"><span class="plat">${platformShort(c.platform)}</span>${esc(c.name)}<small>now ${chf(cur)}/day · POAS ${c.poas.toFixed(2)}x</small></div>
-      <input type="range" id="sim-${esc(c.id)}" min="0" max="${max}" step="1" value="${cur}" aria-label="Daily budget for ${esc(c.name)}">
-      <output for="sim-${esc(c.id)}">${chf(cur)}/d</output>
+      <div class="name"><span class="plat">${platformShort(c.platform)}</span>${esc(c.name)}<small>${esc(tr("sim.now", { amt: chf(cur), poas: `${c.poas.toFixed(2)}x` }))}</small></div>
+      <input type="range" id="sim-${esc(c.id)}" min="0" max="${max}" step="1" value="${cur}" aria-label="${esc(tr("sim.aria", { name: c.name }))}">
+      <output for="sim-${esc(c.id)}">${esc(tr("sim.perDay", { amt: chf(cur) }))}</output>
       <span class="chg">±CHF 0</span>
     </div>`;
   });
@@ -475,7 +513,7 @@ function updateSim(a: Analysis) {
     const chg = b === cur ? 0 : simChange(c, b);
     total += chg;
     spendDelta += (b - currentDaily(c, a)) * 30;
-    row.querySelector("output")!.textContent = `${chf(b)}/d`;
+    row.querySelector("output")!.textContent = tr("sim.perDay", { amt: chf(b) });
     const el = row.querySelector<HTMLElement>(".chg")!;
     el.textContent = chg === 0 ? "±CHF 0" : signed(chg);
     el.className = `chg ${chg > 0 ? "pos" : chg < 0 ? "neg" : ""}`;
@@ -485,9 +523,9 @@ function updateSim(a: Analysis) {
   countTo(big, "sim", total, (n) => `${signed(n)}`, 400);
   const newProfit = a.totals.cm3 * (30 / Math.max(1, a.daily.length)) + total;
   $("sim-sum").innerHTML = `
-    <div><span>Ad spend change</span><b>${signed(spendDelta)}/mo</b></div>
-    <div><span>Profit after ads now</span><b>${chf(a.totals.cm3 * (30 / Math.max(1, a.daily.length)))}/mo</b></div>
-    <div><span>Projected</span><b>${chf(newProfit)}/mo</b></div>`;
+    <div><span>${esc(tr("sim.spendChange"))}</span><b>${esc(tr("sim.perMo", { v: signed(spendDelta) }))}</b></div>
+    <div><span>${esc(tr("sim.profitNow"))}</span><b>${esc(tr("sim.perMo", { v: chf(a.totals.cm3 * (30 / Math.max(1, a.daily.length))) }))}</b></div>
+    <div><span>${esc(tr("sim.projected"))}</span><b>${esc(tr("sim.perMo", { v: chf(newProfit) }))}</b></div>`;
 }
 
 function applyPlan(a: Analysis) {
@@ -510,22 +548,22 @@ function focusSim(campaignId: string) {
 
 // ---------- campaigns ----------
 function verdict(c: CampaignRow) {
-  if (c.poas >= 1.6 && c.lostIsBudget > 0.12) return `<span class="pill scale">SCALE</span>`;
-  if (c.poas >= 1.05) return `<span class="pill keep">KEEP</span>`;
-  if (c.poas >= 0.6) return `<span class="pill fix">FIX</span>`;
-  return `<span class="pill cut">CUT</span>`;
+  if (c.poas >= 1.6 && c.lostIsBudget > 0.12) return `<span class="pill scale">${esc(tr("v.scale"))}</span>`;
+  if (c.poas >= 1.05) return `<span class="pill keep">${esc(tr("v.keep"))}</span>`;
+  if (c.poas >= 0.6) return `<span class="pill fix">${esc(tr("v.fix"))}</span>`;
+  return `<span class="pill cut">${esc(tr("v.cut"))}</span>`;
 }
 
 function renderCampaigns(list: CampaignRow[]) {
   const maxPoas = Math.max(2, ...list.map((c) => c.poas));
   $("campaign-table").innerHTML = `
-    <thead><tr><th>Campaign</th><th>Spend</th><th>Platform ROAS</th><th>True ROAS</th><th>POAS</th><th>Profit after ads</th><th>CPC 7d</th><th>Lost IS budget</th><th>Verdict</th></tr></thead>
+    <thead><tr>${(["th.campaign", "th.spend", "th.platformRoas", "th.trueRoas", "th.poas", "th.profit", "th.cpc", "th.lostIs", "th.verdict"] as Key[]).map((k) => `<th>${esc(tr(k))}</th>`).join("")}</tr></thead>
     <tbody>${list.map((c, n) => `
-      <tr class="row rise" style="--i:${n}" data-id="${esc(c.id)}" title="Open in simulator">
-        <td><span class="plat">${platformShort(c.platform)}</span>${esc(c.name)}<span class="meta">${esc(c.type)} · ${chf(c.dailyBudget)}/day budget</span></td>
+      <tr class="row rise" style="--i:${n}" data-id="${esc(c.id)}" title="${esc(tr("camp.rowTitle"))}">
+        <td><span class="plat">${platformShort(c.platform)}</span>${esc(c.name)}<span class="meta">${esc(tr("camp.budget", { type: c.type, amt: chf(c.dailyBudget) }))}</span></td>
         <td>${chf(c.spend)}</td>
         <td>${c.platformRoas.toFixed(2)}x</td>
-        <td>${c.trueRoas.toFixed(2)}x${c.overReporting > 0.25 ? `<span class="meta">platform +${pct(c.overReporting)}</span>` : ""}</td>
+        <td>${c.trueRoas.toFixed(2)}x${c.overReporting > 0.25 ? `<span class="meta">${esc(tr("camp.platformPlus", { pct: pct(c.overReporting) }))}</span>` : ""}</td>
         <td class="${c.poas < 1 ? "neg" : "pos"}">${c.poas.toFixed(2)}x<span class="bar-cell" aria-hidden="true"><i style="width:${Math.min(100, (c.poas / maxPoas) * 100)}%;background:${c.poas < 1 ? "var(--bad)" : "var(--good)"}"></i></span></td>
         <td class="${c.profit < 0 ? "neg" : "pos"}">${chf(c.profit)}</td>
         <td class="${c.cpcTrend > 0.3 ? "neg" : ""}">${c.cpcTrend >= 0 ? "+" : ""}${pct(c.cpcTrend)}</td>
@@ -536,38 +574,38 @@ function renderCampaigns(list: CampaignRow[]) {
 }
 
 // ---------- products ----------
-const PRODUCT_COLS: { key: keyof ProductRow; label: string; fmt: (p: ProductRow, max: number) => string; cls?: (p: ProductRow) => string }[] = [
-  { key: "netSales", label: "Net sales", fmt: (p) => chf(p.netSales) },
-  { key: "cm2", label: "Before ads", fmt: (p) => chf(p.cm2), cls: (p) => (p.cm2 < 0 ? "neg" : "") },
-  { key: "adSpend", label: "Ad spend", fmt: (p) => chf(p.adSpend) },
-  { key: "cm3", label: "Profit (CM3)", cls: (p) => (p.cm3 < 0 ? "neg" : "pos"),
+const PRODUCT_COLS: { key: keyof ProductRow; label: Key; fmt: (p: ProductRow, max: number) => string; cls?: (p: ProductRow) => string }[] = [
+  { key: "netSales", label: "p.netSales", fmt: (p) => chf(p.netSales) },
+  { key: "cm2", label: "p.beforeAds", fmt: (p) => chf(p.cm2), cls: (p) => (p.cm2 < 0 ? "neg" : "") },
+  { key: "adSpend", label: "p.ads", fmt: (p) => chf(p.adSpend) },
+  { key: "cm3", label: "p.cm3", cls: (p) => (p.cm3 < 0 ? "neg" : "pos"),
     fmt: (p, max) => { const w = Math.min(50, (Math.abs(p.cm3) / max) * 50); return `${chf(p.cm3)}<span class="div-cell" aria-hidden="true"><i style="${p.cm3 < 0 ? `right:50%;transform-origin:right` : `left:50%;transform-origin:left`};width:${w}%;background:${p.cm3 < 0 ? "var(--bad)" : "var(--good)"}"></i></span>`; } },
-  { key: "cm3Margin", label: "Margin", fmt: (p) => pct(p.cm3Margin, 1), cls: (p) => (p.cm3Margin < 0 ? "neg" : "") },
-  { key: "returnRate", label: "Returns", fmt: (p) => pct(p.returnRate, 1), cls: (p) => (p.returnRate > 0.1 ? "neg" : "") },
-  { key: "avgDiscountPct", label: "Discount", fmt: (p) => pct(p.avgDiscountPct), cls: (p) => (p.avgDiscountPct > 0.12 ? "neg" : "") },
-  { key: "daysOfCover", label: "Stock days", fmt: (p) => (fin(p.daysOfCover) === null ? "–" : p.daysOfCover.toFixed(p.daysOfCover < 10 ? 1 : 0)), cls: (p) => (fin(p.daysOfCover) !== null && p.daysOfCover < 10 ? "neg" : "") },
+  { key: "cm3Margin", label: "p.margin", fmt: (p) => pct(p.cm3Margin, 1), cls: (p) => (p.cm3Margin < 0 ? "neg" : "") },
+  { key: "returnRate", label: "p.returns", fmt: (p) => pct(p.returnRate, 1), cls: (p) => (p.returnRate > 0.1 ? "neg" : "") },
+  { key: "avgDiscountPct", label: "p.discount", fmt: (p) => pct(p.avgDiscountPct), cls: (p) => (p.avgDiscountPct > 0.12 ? "neg" : "") },
+  { key: "daysOfCover", label: "p.stock", fmt: (p) => (fin(p.daysOfCover) === null ? "–" : p.daysOfCover.toFixed(p.daysOfCover < 10 ? 1 : 0)), cls: (p) => (fin(p.daysOfCover) !== null && p.daysOfCover < 10 ? "neg" : "") },
 ];
 
 function costBreakdown(p: ProductRow) {
   const parts = [
-    { k: "Cost of goods", v: p.cogs, c: "var(--bar-cost)" },
-    { k: "Shipping + pick & pack", v: p.shipping + p.pickPack, c: "var(--info)" },
-    { k: "Payment fees", v: p.paymentFees, c: "var(--accent-2)" },
-    { k: "Return handling", v: p.returnHandling, c: "var(--warn)" },
-    { k: "Ad spend", v: p.adSpend, c: "var(--series-2)" },
-    { k: "Profit", v: Math.max(0, p.cm3), c: "var(--good)" },
+    { k: tr("bd.cogs"), v: p.cogs, c: "var(--bar-cost)" },
+    { k: tr("bd.ship"), v: p.shipping + p.pickPack, c: "var(--info)" },
+    { k: tr("bd.fees"), v: p.paymentFees, c: "var(--accent-2)" },
+    { k: tr("bd.ret"), v: p.returnHandling, c: "var(--warn)" },
+    { k: tr("bd.ads"), v: p.adSpend, c: "var(--series-2)" },
+    { k: tr("bd.profit"), v: Math.max(0, p.cm3), c: "var(--good)" },
   ].filter((x) => x.v > 0.5);
   // The bar is net sales split into costs and profit; for a loss-maker it is the costs alone.
   const total = parts.reduce((s, x) => s + x.v, 0) || 1;
-  return `<div class="stackbar" title="${p.cm3 < 0 ? "Costs (exceed net sales)" : "Net sales split into costs and profit"}">${parts.map((x) => `<span style="width:${(x.v / total) * 100}%;background:${x.c}" title="${esc(x.k)}: ${chf(x.v)}"></span>`).join("")}</div>
-    <div class="stack-legend">${parts.map((x) => `<span><i style="background:${x.c}"></i>${esc(x.k)}<b>${chf(x.v)}</b></span>`).join("")}<span>Unit price <b>${chf(p.price)}</b></span><span>Landed cost <b>CHF ${p.unitCost.toFixed(2)}</b></span><span>Units <b>${fmtInt.format(p.units)}</b></span></div>
-    ${p.cm3 < 0 ? `<p class="note">Costs exceed net sales of ${chf(p.netSales)}: a loss of ${chf(-p.cm3)} in this period.</p>` : ""}`;
+  return `<div class="stackbar" title="${esc(tr(p.cm3 < 0 ? "bd.titleLoss" : "bd.titleOk"))}">${parts.map((x) => `<span style="width:${(x.v / total) * 100}%;background:${x.c}" title="${esc(x.k)}: ${chf(x.v)}"></span>`).join("")}</div>
+    <div class="stack-legend">${parts.map((x) => `<span><i style="background:${x.c}"></i>${esc(x.k)}<b>${chf(x.v)}</b></span>`).join("")}<span>${esc(tr("bd.price"))} <b>${chf(p.price)}</b></span><span>${esc(tr("bd.cost"))} <b>CHF ${p.unitCost.toFixed(2)}</b></span><span>${esc(tr("bd.units"))} <b>${fmtInt.format(p.units)}</b></span></div>
+    ${p.cm3 < 0 ? `<p class="note">${esc(tr("bd.loss", { sales: chf(p.netSales), loss: chf(-p.cm3) }))}</p>` : ""}`;
 }
 
 function renderProductFilters(list: ProductRow[]) {
   const cats = ["All", ...[...new Set(list.map((p) => p.category))].sort()];
   if (!cats.includes(productCat)) productCat = "All";
-  $("cats").innerHTML = cats.map((c) => `<button type="button" aria-pressed="${c === productCat}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+  $("cats").innerHTML = cats.map((c) => `<button type="button" aria-pressed="${c === productCat}" data-c="${esc(c)}">${esc(c === "All" ? tr("prod.all") : c)}</button>`).join("");
   $("cats").querySelectorAll<HTMLButtonElement>("button").forEach((b) => b.addEventListener("click", () => {
     productCat = b.dataset.c!;
     $("cats").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
@@ -586,10 +624,10 @@ function renderProducts(list: ProductRow[]) {
   const max = Math.max(1, ...list.map((p) => Math.abs(p.cm3)));
   const cols = PRODUCT_COLS.length + 1;
   $("product-table").innerHTML = `
-    <thead><tr><th>Product</th>${PRODUCT_COLS.map((c) => `<th><button type="button" data-k="${String(c.key)}" ${c.key === key ? `aria-sort="${dir === 1 ? "ascending" : "descending"}"` : ""}>${c.label}${c.key === key ? (dir === 1 ? " ↑" : " ↓") : ""}</button></th>`).join("")}</tr></thead>
+    <thead><tr><th>${esc(tr("th.product"))}</th>${PRODUCT_COLS.map((c) => `<th><button type="button" data-k="${String(c.key)}" ${c.key === key ? `aria-sort="${dir === 1 ? "ascending" : "descending"}"` : ""}>${esc(tr(c.label))}${c.key === key ? (dir === 1 ? " ↑" : " ↓") : ""}</button></th>`).join("")}</tr></thead>
     <tbody>${rows.map((p, n) => `
       <tr class="row rise" style="--i:${Math.min(n, 20)}" data-id="${esc(p.id)}" aria-expanded="${openProducts.has(p.id)}"><td>${esc(p.title)}<span class="meta">${esc(p.brand)} · ${esc(p.category)} · ${esc(p.sku)}</span></td>${PRODUCT_COLS.map((c) => `<td class="${c.cls?.(p) ?? ""}">${c.fmt(p, max)}</td>`).join("")}</tr>
-      ${openProducts.has(p.id) ? `<tr class="detail"><td colspan="${cols}">${costBreakdown(p)}</td></tr>` : ""}`).join("") || `<tr><td colspan="${cols}" class="empty">No product matches.</td></tr>`}</tbody>`;
+      ${openProducts.has(p.id) ? `<tr class="detail"><td colspan="${cols}">${costBreakdown(p)}</td></tr>` : ""}`).join("") || `<tr><td colspan="${cols}" class="empty">${esc(tr("prod.none"))}</td></tr>`}</tbody>`;
   $("product-table").querySelectorAll<HTMLButtonElement>("th button").forEach((b) => b.addEventListener("click", () => {
     const k = b.dataset.k as keyof ProductRow;
     productSort = { key: k, dir: productSort.key === k ? (productSort.dir === 1 ? -1 : 1) : -1 };
@@ -606,17 +644,8 @@ function renderProducts(list: ProductRow[]) {
 const turns: { role: "user" | "assistant"; content: string }[] = [];
 let busy = false;
 let ctl: AbortController | undefined;
-const SUGGESTIONS = [
-  "Which products are the most profitable after deducting all costs?",
-  "Where are we currently losing money?",
-  "Which marketing budgets should we optimize?",
-  "Was sollten wir diese Woche als Erstes tun?",
-  "What does POAS mean?",
-];
-const TOOL_LABEL: Record<string, string> = {
-  get_overview: "store P&L", list_products: "products", list_campaigns: "campaigns", get_insights: "findings",
-  get_product_detail: "product detail", simulate_budget_change: "budget simulation",
-};
+const suggestions = () => (["sugg.1", "sugg.2", "sugg.3", "sugg.4", "sugg.5"] as Key[]).map((k) => tr(k));
+const toolLabel = (name: string) => tr(`tool.${name}` as Key);
 
 function mdLite(text: string): string {
   const lines = esc(text).split(/\n/);
@@ -649,19 +678,19 @@ function addMsg(role: "user" | "ai", html: string) {
   return div;
 }
 
-const typing = (label = "Analysing") => `<span class="typing"><i></i><i></i><i></i><span>${label}…</span></span>`;
-const stepsHtml = (trace: string[]) => (trace.length ? `<div class="steps">${[...new Set(trace)].map((t) => `<span class="step">${esc(TOOL_LABEL[t] ?? t)}</span>`).join("")}</div>` : "");
+const typing = (label = tr("chat.analysing")) => `<span class="typing"><i></i><i></i><i></i><span>${label}…</span></span>`;
+const stepsHtml = (trace: string[]) => (trace.length ? `<div class="steps">${[...new Set(trace)].map((t) => `<span class="step">${esc(toolLabel(t))}</span>`).join("")}</div>` : "");
 
 function renderSuggestions() {
   $("suggest").hidden = turns.length > 0;
-  $("suggest").innerHTML = SUGGESTIONS.map((s, i) => `<button type="button" style="--i:${i}">${esc(s)}</button>`).join("");
+  $("suggest").innerHTML = suggestions().map((s, i) => `<button type="button" style="--i:${i}">${esc(s)}</button>`).join("");
   $("suggest").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => ask(b.textContent!)));
 }
 
 function setAiState() {
   const el = $("ai-state");
-  if (aiMode === "offline") { el.textContent = "rules mode"; el.setAttribute("data-off", ""); el.title = "Claude is not connected in this view; answers come from fixed rules over the profit engine."; }
-  else { el.textContent = aiMode === "sample" ? "Claude" : "Claude · live"; el.removeAttribute("data-off"); el.title = ""; }
+  if (aiMode === "offline") { el.textContent = tr("ai.rules"); el.setAttribute("data-off", ""); el.title = tr("ai.rulesTitle"); }
+  else { el.textContent = tr(aiMode === "sample" ? "ai.claude" : "ai.live"); el.removeAttribute("data-off"); el.title = ""; }
 }
 
 async function ask(question: string) {
@@ -674,9 +703,9 @@ async function ask(question: string) {
   renderSuggestions();
 
   if (aiMode === "offline" && EMBEDDED) {
-    const bubble = addMsg("ai", typing("Checking the numbers"));
+    const bubble = addMsg("ai", typing(tr("chat.checkingNumbers")));
     await new Promise((r) => setTimeout(r, reduced() ? 0 : 450));
-    const text = answerOffline(question, data.ctx);
+    const text = answerOffline(question, data.ctx, lang);
     bubble.innerHTML = mdLite(text);
     turns.push({ role: "assistant", content: text });
     $("msgs").scrollTop = $("msgs").scrollHeight;
@@ -684,7 +713,7 @@ async function ask(question: string) {
   }
 
   busy = true;
-  $<HTMLButtonElement>("send").textContent = "Stop";
+  $<HTMLButtonElement>("send").textContent = tr("chat.stop");
   const bubble = addMsg("ai", typing());
   const trace: string[] = [];
   try {
@@ -698,12 +727,12 @@ async function ask(question: string) {
         inputSchema: t.input_schema,
         execute: (input: Record<string, unknown>) => {
           trace.push(t.name);
-          bubble.innerHTML = typing(`Checking ${TOOL_LABEL[t.name] ?? t.name}`) + stepsHtml(trace);
+          bubble.innerHTML = typing(tr("chat.checking", { what: toolLabel(t.name) })) + stepsHtml(trace);
           return runTool(ctx, t.name, input ?? {});
         },
       }));
       const period = `Selected period: last ${days} days (${data.analysis.range.from} to ${data.analysis.range.to}).`;
-      const input = [{ role: "user" as const, content: `${SYSTEM_PROMPT}\n\n${period}\nUse the tools to answer. The conversation follows.` }, ...turns.slice(-10)];
+      const input = [{ role: "user" as const, content: `${SYSTEM_PROMPT}\n\n${period}\nUse the tools to answer. ${tr("ai.langInstruction")} The conversation follows.` }, ...turns.slice(-10)];
       const res = await sampleFn(input, {
         tools,
         signal: ctl.signal,
@@ -712,7 +741,7 @@ async function ask(question: string) {
       text = res.text;
     } else {
       ctl = new AbortController();
-      const r = await fetch("api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ days, messages: turns.slice(-10) }), signal: ctl.signal });
+      const r = await fetch("api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ days, lang, messages: turns.slice(-10) }), signal: ctl.signal });
       const body = await r.json();
       if (!r.ok) throw { code: "server", message: body.error ?? `HTTP ${r.status}` };
       text = body.text;
@@ -722,20 +751,13 @@ async function ask(question: string) {
     bubble.innerHTML = mdLite(text) + stepsHtml(trace);
   } catch (e: any) {
     const code = e?.name === "AbortError" ? "cancelled" : e?.code;
-    const copy: Record<string, string> = {
-      cancelled: "Stopped.",
-      not_granted: "Claude access was not allowed for this page. Switching to rules-based answers.",
-      rate_limited: "Too many questions in a short time. Try again in a minute.",
-      tools_unavailable: "This viewer cannot run the analyst's tools. Switching to rules-based answers.",
-      sampling_disabled: "Claude is not available for this account. Switching to rules-based answers.",
-      refused: "Claude declined this question. Try rephrasing it.",
-    };
-    const msg = copy[code] ?? (e?.message ? esc(String(e.message)) : "Something went wrong. Try again.");
+    const known = ["cancelled", "not_granted", "rate_limited", "tools_unavailable", "sampling_disabled", "refused"];
+    const msg = known.includes(code) ? esc(tr(`err.${code}` as Key)) : e?.message ? esc(String(e.message)) : esc(tr("err.generic"));
     const permanent = code === "not_granted" || code === "sampling_disabled" || code === "tools_unavailable";
     if (permanent) {
       aiMode = "offline";
       setAiState();
-      const text = answerOffline(question, data.ctx);
+      const text = answerOffline(question, data.ctx, lang);
       bubble.innerHTML = `<p class="note">${msg}</p>` + mdLite(text);
       turns.push({ role: "assistant", content: text });
     } else {
@@ -745,7 +767,7 @@ async function ask(question: string) {
   } finally {
     busy = false;
     ctl = undefined;
-    $<HTMLButtonElement>("send").textContent = "Ask";
+    $<HTMLButtonElement>("send").textContent = tr("chat.ask");
     renderSuggestions();
   }
 }
@@ -764,7 +786,7 @@ function wireChat() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("composer").dispatchEvent(new Event("submit", { cancelable: true })); }
   });
   q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = `${Math.min(120, q.scrollHeight)}px`; });
-  addMsg("ai", `<p>Hi! I watch sales, costs and ad spend across all connected sources. Ask me anything about profitability, or start with one of these:</p>`);
+  addMsg("ai", `<p>${esc(tr("chat.welcome"))}</p>`).dataset.welcome = "1";
   renderSuggestions();
 }
 
@@ -817,7 +839,7 @@ async function render() {
   try {
     data = await loadData(days);
   } catch (e) {
-    $("hero-meta").innerHTML = `<span class="neg">Could not load data: ${esc(String((e as Error).message))}</span>`;
+    $("hero-meta").innerHTML = `<span class="neg">${esc(tr("err.load", { msg: String((e as Error).message) }))}</span>`;
     return;
   }
   const a = data.analysis;
@@ -831,11 +853,30 @@ async function render() {
   renderCampaigns(a.campaigns);
   renderProductFilters(a.products);
   renderProducts(a.products);
-  $("foot").textContent = `Period ${a.range.from} to ${a.range.to}. Cost assumptions: payment ${pct(a.costs.paymentFeePct, 1)} + CHF ${a.costs.paymentFeeFixed.toFixed(2)}, pick & pack CHF ${a.costs.pickPackPerOrder.toFixed(2)}/order, return handling CHF ${a.costs.returnHandlingPerUnit.toFixed(2)}/unit, ${pct(a.costs.returnResaleRate)} of returns resellable. Refunds are counted on the order date.`;
+  $("foot").textContent = tr("foot", { from: a.range.from, to: a.range.to, pct: pct(a.costs.paymentFeePct, 1), fixed: a.costs.paymentFeeFixed.toFixed(2), pp: a.costs.pickPackPerOrder.toFixed(2), rh: a.costs.returnHandlingPerUnit.toFixed(2), resale: pct(a.costs.returnResaleRate) });
   setAiState();
 }
 
+function setLanguage(next: Lang) {
+  if (next === lang) return;
+  lang = next;
+  tr = makeT(lang);
+  store.set("apd-lang", lang);
+  applyStatic();
+  setHelpLanguage(tr);
+  setAiState();
+  // A fresh chat greets in the new language; an ongoing conversation is kept.
+  const greet = $("msgs").querySelector<HTMLElement>("[data-welcome]");
+  if (greet) greet.innerHTML = `<p>${esc(tr("chat.welcome"))}</p>`;
+  renderSuggestions();
+  placeThumb($("range")); placeThumb($("act-filter"));
+  render(); // findings are generated in the selected language
+}
+
 function wireControls() {
+  const select = $<HTMLSelectElement>("lang");
+  select.value = lang;
+  select.addEventListener("change", () => isLang(select.value) && setLanguage(select.value));
   const range = $("range");
   range.querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
     b.setAttribute("aria-pressed", String(Number(b.dataset.days) === days));
@@ -876,13 +917,14 @@ function wireControls() {
 }
 
 wireTheme();
-initHelp(() => (data ? { analysis: data.analysis, insights: data.insights, days } : undefined));
+applyStatic();
+initHelp(() => (data ? { analysis: data.analysis, insights: data.insights, days } : undefined), tr);
 wireControls();
 wireNav();
 wireChat();
 render().then(() => {
   // The 3D part is decoration: load it after the numbers are on screen.
   const host = document.getElementById("gear3d");
-  if (host) window.setTimeout(() => mountGear3D(host).catch(() => { host.hidden = true; }), 250);
+  if (host) window.setTimeout(() => mountGear3D(host, () => tr).catch(() => { host.hidden = true; }), 250);
 });
 initAi();

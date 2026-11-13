@@ -13,6 +13,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import { getAnalysis } from "../service.ts";
 import { aiAvailable, writeBriefing } from "../ai/agent.ts";
 import type { Insight } from "../engine/insights.ts";
+import { isLang } from "../i18n/index.ts";
+
+// Language of alerts and the briefing (en, de, fr, it, es).
+const LANG = isLang(process.env.MONITOR_LANG) ? process.env.MONITOR_LANG : "en";
 
 // State survives restarts and one-shot runs (cron / GitHub Actions) when MONITOR_STATE_FILE is set.
 const STATE_FILE = process.env.MONITOR_STATE_FILE;
@@ -45,7 +49,7 @@ const fmt = (i: Insight) =>
   `*[${i.severity.toUpperCase()}] ${i.title}*${i.impactMonthly > 0 ? `  (~CHF ${Math.round(i.impactMonthly).toLocaleString("de-CH")}/month)` : ""}\n${i.summary}\n→ ${i.recommendation}`;
 
 export async function runOnce() {
-  const { ds, analysis, insights } = await getAnalysis(30, true);
+  const { ds, analysis, insights } = await getAnalysis(30, true, LANG);
   await loadState();
   const now = Date.now();
   const fresh = insights.filter((i) => (i.severity === "critical" || i.severity === "high") && now - (seen.get(i.id) ?? 0) > RE_ALERT_AFTER_MS);
@@ -58,7 +62,7 @@ export async function runOnce() {
   const today = new Date().toISOString().slice(0, 10);
   if (aiAvailable() && today !== lastBriefingDay) {
     lastBriefingDay = today;
-    await notify(`:sunrise: *Profit briefing*\n${await writeBriefing({ analysis, insights, dataset: ds })}`);
+    await notify(`:sunrise: *Profit briefing*\n${await writeBriefing({ analysis, insights, dataset: ds }, LANG)}`);
   }
   await saveState();
   console.log(JSON.stringify({ level: "info", job: "monitor", insights: insights.length, new: fresh.length, cm3: Math.round(analysis.totals.cm3) }));

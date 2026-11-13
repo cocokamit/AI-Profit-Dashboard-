@@ -21,6 +21,12 @@ Without an API key (or when a demo viewer is not signed in to Claude), the chat 
 
 Requires Node ≥ 22.18. TypeScript runs natively, so there is no compile step for the server.
 
+## Languages
+
+The dashboard is available in **English, German, French, Italian and Spanish**, covering Switzerland and the expansion markets Germany, Italy and Spain. Use the language picker in the header. First-time visitors get their browser language, and the choice is remembered.
+
+Everything switches together: interface, charts, generated findings, help, tour, glossary and rules-mode chat answers. The AI analyst is told to answer in the selected language, and hourly alerts use `MONITOR_LANG`. Dictionaries live in `src/i18n/` with English as the master. TypeScript refuses to build if a language is missing a key, and a test checks that every language fills all placeholders and routes its own suggested questions. To add a language, copy `en.ts` and register it in `src/i18n/index.ts`.
+
 ## Help for first-time users
 
 The dashboard explains itself, so non-experts can use it:
@@ -117,6 +123,7 @@ For attribution, Shopify's last-visit UTM parameters connect orders to campaigns
 
 ```
 src/core/          canonical types, connector interface + registry
+src/i18n/          dictionaries (en master, de, fr, it, es) + translator
 src/connectors/    shopify, google-ads, meta, ga4, demo-data (seeded simulation)
 src/engine/        profit.ts (margins), insights.ts (detectors)
 src/ai/            tools.ts (shared tool definitions + system prompt), agent.ts (Claude tool loop),

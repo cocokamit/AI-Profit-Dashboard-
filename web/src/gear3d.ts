@@ -8,6 +8,7 @@
  *   No WebGL / no library -> the card simply shows without the 3D part.
  */
 import type * as THREE_NS from "three";
+import type { Key, T } from "../../src/i18n/index.ts";
 
 type Three = typeof THREE_NS;
 declare global { interface Window { THREE?: Three } }
@@ -70,12 +71,8 @@ function annulus(T: Three, outer: number, inner: number) {
   return s;
 }
 
-const PARTS: Record<string, { name: string; spec: string }> = {
-  drive: { name: "Spur gear Z18", spec: "Module 0.5 · C45 steel · Ø 10 mm" },
-  pinion: { name: "Pinion Z11", spec: "Module 0.5 · hardened, coated · Ø 6.5 mm" },
-};
-
-export async function mountGear3D(host: HTMLElement): Promise<void> {
+/** `getT` returns the current translator, so labels follow language changes. */
+export async function mountGear3D(host: HTMLElement, getT: () => T): Promise<void> {
   let T: Three;
   try { T = await loadThree(); } catch { host.hidden = true; host.closest(".hero-main")?.classList.add("no3d"); return; }
 
@@ -89,7 +86,8 @@ export async function mountGear3D(host: HTMLElement): Promise<void> {
   renderer.toneMappingExposure = 1.05;
   const canvas = renderer.domElement;
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", "3D spur gear pair. Drag or use the arrow keys to turn it.");
+  canvas.setAttribute("aria-label", getT()("gear.aria"));
+  canvas.dataset.i18nAria = "gear.aria"; // refreshed by the page's language switch
   canvas.tabIndex = 0;
   host.prepend(canvas);
 
@@ -201,8 +199,10 @@ export async function mountGear3D(host: HTMLElement): Promise<void> {
     canvas.style.cursor = dragging ? "grabbing" : mesh ? "grab" : "default";
     if (!label) return;
     if (!mesh) { label.hidden = true; return; }
-    const p = PARTS[mesh.userData.part as string]!;
-    label.innerHTML = `<b>${p.name}</b><span>${p.spec}</span><span>Ratio 1 : ${ratio.toFixed(2)}</span>`;
+    const t = getT();
+    const part = mesh.userData.part as string;
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+    label.innerHTML = `<b>${esc(t(`gear.${part}.name` as Key))}</b><span>${esc(t(`gear.${part}.spec` as Key))}</span><span>${esc(t("gear.ratio", { r: ratio.toFixed(2) }))}</span>`;
     label.hidden = false;
     const r = host.getBoundingClientRect();
     const x = Math.min(Math.max(8, clientX - r.left + 14), r.width - label.offsetWidth - 8);

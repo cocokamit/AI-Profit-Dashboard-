@@ -1,7 +1,10 @@
 /**
  * Plain-language definitions of every term the dashboard uses. Shared by the
  * UI (Guide panel, "?" popovers) and the rules-mode chat ("what does POAS mean?").
+ * The English text here is the reference; displayed text comes from the i18n
+ * dictionaries (keys g.<id>.term / .short / .ex).
  */
+import { makeT, type Key } from "../i18n/index.ts";
 export interface Term {
   id: string;
   term: string;
@@ -50,9 +53,14 @@ export const GLOSSARY: Term[] = [
     short: "Carrier cost minus what the customer paid for shipping. With free shipping above a threshold, you pay the whole carrier cost." },
 ];
 
+/** Term names in every UI language, so "Was bedeutet Retourenquote?" or "qu'est-ce que le ROAS réel ?" match too. */
+function localisedNames(id: string): string[] {
+  return (["en", "de", "fr", "it", "es"] as const).map((l) => makeT(l)(`g.${id}.term` as Key).toLowerCase());
+}
+
 export function findTerm(text: string): Term | undefined {
   const q = text.toLowerCase();
   // longest alias first so "true roas" wins over "roas"
-  const pairs = GLOSSARY.flatMap((t) => [t.term.toLowerCase(), ...t.aliases].map((a) => [a, t] as const)).sort((a, b) => b[0].length - a[0].length);
+  const pairs = GLOSSARY.flatMap((t) => [t.term.toLowerCase(), ...t.aliases, ...localisedNames(t.id)].map((a) => [a, t] as const)).sort((a, b) => b[0].length - a[0].length);
   return pairs.find(([a]) => new RegExp(`(^|[^a-z])${a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z]|$)`).test(q))?.[1];
 }

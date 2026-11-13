@@ -6,6 +6,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { getAnalysis, getDataset } from "../service.ts";
 import { aiAvailable, askAnalyst, type ChatTurn } from "../ai/agent.ts";
 import { answerOffline } from "../ai/offline.ts";
+import { isLang, type Lang } from "../i18n/index.ts";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 
@@ -30,6 +31,7 @@ async function readBody(req: IncomingMessage, limit = 200_000): Promise<unknown>
 }
 
 const clampDays = (v: unknown) => ([7, 30, 90].includes(Number(v)) ? Number(v) : 30);
+const langOf = (v: unknown): Lang => (isLang(v) ? v : "en");
 
 /** Wraps a handler with method check, error mapping and one structured log line. */
 function route(method: string, fn: Handler): Handler {
@@ -51,7 +53,7 @@ function route(method: string, fn: Handler): Handler {
 
 export const dashboard = route("GET", async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
-  const { ds, analysis, insights } = await getAnalysis(clampDays(url.searchParams.get("days")));
+  const { ds, analysis, insights } = await getAnalysis(clampDays(url.searchParams.get("days")), false, langOf(url.searchParams.get("lang")));
   json(res, 200, { analysis, insights, sources: ds.sources, ai: aiAvailable() ? "server" : "offline" });
 });
 
@@ -61,17 +63,18 @@ export const refresh = route("POST", async (_req, res) => {
 });
 
 export const chat = route("POST", async (req, res) => {
-  const body = (await readBody(req)) as { days?: number; messages?: ChatTurn[] };
+  const body = (await readBody(req)) as { days?: number; lang?: string; messages?: ChatTurn[] };
+  const lang = langOf(body.lang);
   const history = (Array.isArray(body.messages) ? body.messages : [])
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
     .slice(-12)
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
   if (!history.length || history[history.length - 1]!.role !== "user") return json(res, 400, { error: "messages must end with a user message" });
-  const { ds, analysis, insights } = await getAnalysis(clampDays(body.days));
+  const { ds, analysis, insights } = await getAnalysis(clampDays(body.days), false, lang);
   const ctx = { analysis, insights, dataset: ds };
   // Without an API key the chat still answers the core questions from the engine.
-  if (!aiAvailable()) return json(res, 200, { text: answerOffline(history[history.length - 1]!.content, ctx), toolCalls: [], offline: true });
-  json(res, 200, await askAnalyst(ctx, history));
+  if (!aiAvailable()) return json(res, 200, { text: answerOffline(history[history.length - 1]!.content, ctx, lang), toolCalls: [], offline: true });
+  json(res, 200, await askAnalyst(ctx, history, lang));
 });
 
 export const health = route("GET", async (_req, res) => {

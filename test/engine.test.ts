@@ -66,7 +66,7 @@ test("offline answers cover the standard questions", async () => {
   assert.match(answerOffline("Which products are the most profitable after deducting all costs?", ctx), /most profitable product/);
   assert.match(answerOffline("Where are we currently losing money?", ctx), /per month\*\* in/);
   assert.match(answerOffline("Which marketing budgets should we optimize?", ctx), /Cut .*Prospecting/);
-  assert.match(answerOffline("Was sollten wir diese Woche als Erstes tun?", ctx), /Massnahmen/);
+  assert.match(answerOffline("Was sollten wir diese Woche als Erstes tun?", ctx, "de"), /Massnahmen/);
   assert.match(answerOffline(`Explain this finding: "${insights[0]!.title}"`, ctx), /Next step/);
 });
 
@@ -76,4 +76,28 @@ test("glossary questions are answered in rules mode", async () => {
   assert.match(answerOffline("What does POAS mean?", ctx), /POAS \(profit on ad spend\)/);
   assert.match(answerOffline("what is true ROAS", ctx), /True ROAS/);
   assert.match(answerOffline("Was bedeutet CM3?", ctx), /CM3/);
+});
+
+test("every language produces complete findings and routes its own suggested questions", async () => {
+  const { answerOffline } = await import("../src/ai/offline.ts");
+  const { makeT, LANGS } = await import("../src/i18n/index.ts");
+  for (const { id: lang } of LANGS) {
+    const t = makeT(lang);
+    const insights = detectInsights(a, ds, lang);
+    assert.equal(insights.length, detectInsights(a, ds, "en").length, `${lang}: same findings`);
+    for (const i of insights) {
+      const text = [i.title, i.summary, i.recommendation, ...Object.keys(i.metrics)].join(" ");
+      assert.doesNotMatch(text, /\{\w+\}/, `${lang}: unfilled placeholder in "${text}"`);
+    }
+    const ctx = { analysis: a, insights, dataset: ds };
+    const fallback = t("off.fallback");
+    for (const k of ["sugg.1", "sugg.2", "sugg.3", "sugg.4", "sugg.5"] as const) {
+      const q = t(k);
+      const ans = answerOffline(q, ctx, lang);
+      assert.doesNotMatch(ans, /\{\w+\}/, `${lang} ${k}: unfilled placeholder`);
+      assert.ok(!ans.startsWith(fallback), `${lang} ${k}: "${q}" fell through to the fallback`);
+    }
+    assert.match(answerOffline(t("sugg.5"), ctx, lang), new RegExp(t("g.poas.term").replace(/[()]/g, "\\$&")), `${lang}: POAS definition`);
+    assert.match(answerOffline(t("card.askQ", { title: insights[0]!.title }), ctx, lang), new RegExp(t("off.next", { x: "" }).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `${lang}: finding question`);
+  }
 });

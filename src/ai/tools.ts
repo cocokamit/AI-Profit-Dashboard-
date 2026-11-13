@@ -194,4 +194,4 @@ Answer format:
 - Then at most 5 short bullet points with the supporting numbers.
 - Finish with "Next step:" and the single most valuable action.
 - Use CHF with apostrophe thousands separators (CHF 12'400). Keep it under 220 words unless asked for more.
-- Answer in the language of the question (German or English).`;
+- Answer in the language of the question; the dashboard language is given separately.`;

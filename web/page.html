@@ -362,6 +362,17 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
 
 
 
+
+/* ---------- language picker ---------- */
+.lang-pick { position: relative; display: inline-flex; align-items: center; height: 34px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink-2); transition: border-color 0.2s; }
+.lang-pick:hover, .lang-pick:focus-within { border-color: var(--accent); }
+.lang-pick svg { position: absolute; left: 10px; width: 15px; height: 15px; pointer-events: none; }
+.lang-pick select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; height: 100%; padding: 0 26px 0 31px; font-size: 13px; font-weight: 500; color: var(--ink); cursor: pointer; border-radius: 10px; max-width: 150px; }
+.lang-pick select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lang-pick::after { content: ""; position: absolute; right: 11px; top: 50%; width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+.lang-pick select option { color: #0d1220; background: #fff; }
+@media (max-width: 520px) { .lang-pick select { max-width: 74px; padding-right: 22px; } }
+
 /* ---------- 3D part ---------- */
 .hero-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 8px 16px; align-items: center; }
 .hero-main.no3d .hero-top { grid-template-columns: minmax(0, 1fr); }
@@ -489,15 +500,15 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
   <div class="wrap">
     <div class="brand">
       <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-9"/><path d="M15 6h5v5"/></svg></div>
-      <div><h1>AI Profit Dashboard</h1><small id="store-name">Swiss spare parts · CHF net of VAT</small></div>
+      <div><h1 data-i18n="brand.title">AI Profit Dashboard</h1><small id="store-name" data-i18n="brand.sub">Swiss spare parts · CHF net of VAT</small></div>
     </div>
     <nav class="nav" aria-label="Sections">
-      <a href="#overview" aria-current="true">Overview</a>
-      <a href="#actions">Actions</a>
-      <a href="#simulator">Simulator</a>
-      <a href="#campaigns">Campaigns</a>
-      <a href="#products">Products</a>
-      <a href="#how">How it works</a>
+      <a href="#overview" aria-current="true" data-i18n="nav.overview">Overview</a>
+      <a href="#actions" data-i18n="nav.actions">Actions</a>
+      <a href="#simulator" data-i18n="nav.simulator">Simulator</a>
+      <a href="#campaigns" data-i18n="nav.campaigns">Campaigns</a>
+      <a href="#products" data-i18n="nav.products">Products</a>
+      <a href="#how" data-i18n="nav.how">How it works</a>
     </nav>
     <div class="top-right">
       <div class="seg" role="group" aria-label="Period" id="range">
@@ -506,8 +517,9 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
         <button type="button" id="range-30" data-days="30" aria-pressed="true">30d</button>
         <button type="button" id="range-90" data-days="90" aria-pressed="false">90d</button>
       </div>
-      <button type="button" class="guide-btn" id="guide" aria-label="Open the guide: how to read this dashboard and a glossary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><path d="M12 17.2h.01"/></svg><span>Guide</span></button>
-      <button type="button" class="icon-btn" id="theme" aria-label="Switch light/dark theme" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      <label class="lang-pick" for="lang"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18"/></svg><select id="lang" aria-label="Language" data-i18n-aria="lang.aria"><option value="en">EN · English</option><option value="de">DE · Deutsch</option><option value="fr">FR · Français</option><option value="it">IT · Italiano</option><option value="es">ES · Español</option></select></label>
+      <button type="button" class="guide-btn" id="guide" aria-label="Open the guide: how to read this dashboard and a glossary" data-i18n-aria="guide.aria"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><path d="M12 17.2h.01"/></svg><span data-i18n="guide.btn">Guide</span></button>
+      <button type="button" class="icon-btn" id="theme" aria-label="Switch light/dark theme" data-i18n-aria="theme.aria" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
     </div>
   </div>
 </header>
@@ -522,17 +534,17 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
           <div class="hero-meta" id="hero-meta"><span class="skeleton" style="width:220px;height:18px;display:inline-block"></span></div>
           <div class="sources" id="sources"></div>
         </div>
-        <div class="gear3d" id="gear3d"><span class="g-hint">Drag to turn</span><div class="g-label" hidden></div></div>
+        <div class="gear3d" id="gear3d"><span class="g-hint" data-i18n="gear.hint">Drag to turn</span><div class="g-label" hidden></div></div>
       </div>
       <div class="hero-spark" id="hero-spark"></div>
     </div>
     <div class="card-s focus rise" style="--i:1" id="focus-card">
       <div class="focus-head">
-        <div><h2 id="focus-title">Today's focus</h2><p class="sub" id="focus-sub">Highest-impact findings right now</p></div>
+        <div><h2 id="focus-title"><span data-i18n="focus.title">Today's focus</span></h2><p class="sub" id="focus-sub">Highest-impact findings right now</p></div>
         <div class="ring" title="Share of the CHF at stake you marked as done"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="27" fill="none" stroke-width="6"/><circle class="val" id="ring-val" cx="32" cy="32" r="27" fill="none" stroke-width="6" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><span id="ring-txt">0%</span></div>
       </div>
       <div class="focus-list" id="focus-list"></div>
-      <div class="banner" id="banner"><span>ⓘ</span><span><b>Demo data:</b> a simulated Swiss spare-parts shop. Every figure is computed live by the same engine that runs on real Shopify, Google Ads and Meta data.</span></div>
+      <div class="banner" id="banner"><span>ⓘ</span><span><b data-i18n="banner.b">Demo data:</b> <span data-i18n="banner.text">a simulated Swiss spare-parts shop. Every figure is computed live by the same engine that runs on real Shopify, Google Ads and Meta data.</span></span></div>
     </div>
   </section>
 
@@ -542,17 +554,17 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
     <div class="stack">
       <section class="card-s panel rise" style="--i:3" aria-labelledby="wf-title" id="wf-panel">
         <div class="panel-head">
-          <div><h2 id="wf-title">Where the money goes</h2><p>From gross sales to profit after advertising. Hover a bar for its share of net sales.</p></div>
+          <div><h2 id="wf-title"><span data-i18n="wf.title">Where the money goes</span></h2><p data-i18n="wf.sub">From gross sales to profit after advertising. Hover a bar for its share of net sales.</p></div>
         </div>
         <div class="chart" id="waterfall"></div>
       </section>
 
       <section class="card-s panel rise" style="--i:4" aria-labelledby="daily-title" id="daily-panel">
         <div class="panel-head">
-          <div><h2 id="daily-title">Daily profit after ads vs. ad spend</h2><p>CHF per day. Click a series to hide it.</p></div>
+          <div><h2 id="daily-title"><span data-i18n="daily.title">Daily profit after ads vs. ad spend</span></h2><p data-i18n="daily.sub">CHF per day. Click a series to hide it.</p></div>
           <div class="legend" id="daily-legend">
-            <button type="button" id="lg-cm3" data-s="cm3" aria-pressed="true"><i style="background: var(--series-1)"></i>Profit after ads</button>
-            <button type="button" id="lg-ads" data-s="adSpend" aria-pressed="true"><i style="background: var(--series-2)"></i>Ad spend</button>
+            <button type="button" id="lg-cm3" data-s="cm3" aria-pressed="true"><i style="background: var(--series-1)"></i><span data-i18n="daily.profit">Profit after ads</span></button>
+            <button type="button" id="lg-ads" data-s="adSpend" aria-pressed="true"><i style="background: var(--series-2)"></i><span data-i18n="daily.ads">Ad spend</span></button>
           </div>
         </div>
         <div class="chart" id="daily"></div>
@@ -562,27 +574,27 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
     <aside class="card-s chat rise" style="--i:3" aria-labelledby="chat-title" id="chat-panel">
       <div class="chat-head">
         <div class="bot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></div>
-        <div><h2 id="chat-title">Profit analyst <span class="ai-state" id="ai-state">Claude</span></h2><p>Every number comes from the profit engine via tool calls.</p></div>
+        <div><h2 id="chat-title"><span data-i18n="chat.title">Profit analyst</span> <span class="ai-state" id="ai-state">Claude</span></h2><p data-i18n="chat.sub">Every number comes from the profit engine via tool calls.</p></div>
       </div>
       <div class="msgs" id="msgs" aria-live="polite"></div>
       <div class="suggest" id="suggest"></div>
       <form class="composer" id="composer">
         <label for="q" hidden>Question</label>
-        <textarea id="q" rows="1" placeholder="Ask about products, campaigns, costs…"></textarea>
-        <button class="btn" id="send" type="submit" aria-label="Send">Ask</button>
+        <textarea id="q" rows="1" placeholder="Ask about products, campaigns, costs…" data-i18n-ph="chat.ph"></textarea>
+        <button class="btn" id="send" type="submit" aria-label="Send" data-i18n-aria="chat.send">Ask</button>
       </form>
     </aside>
   </div>
 
   <section class="card-s panel" id="actions" aria-labelledby="act-title">
     <div class="panel-head">
-      <div><h2 id="act-title">What to do now</h2><p id="act-sub">Found automatically by the monitoring engine, ranked by severity and CHF impact per month.</p></div>
+      <div><h2 id="act-title"><span data-i18n="act.title">What to do now</span></h2><p id="act-sub" data-i18n="act.sub">Found automatically by the monitoring engine, ranked by severity and CHF impact per month.</p></div>
       <div class="seg" role="group" aria-label="Filter" id="act-filter">
         <span class="thumb" aria-hidden="true"></span>
-        <button type="button" id="f-all" data-k="all" aria-pressed="true">All</button>
-        <button type="button" id="f-problem" data-k="problem" aria-pressed="false">Problems</button>
-        <button type="button" id="f-opportunity" data-k="opportunity" aria-pressed="false">Opportunities</button>
-        <button type="button" id="f-watch" data-k="watch" aria-pressed="false">Watch</button>
+        <button type="button" id="f-all" data-k="all" aria-pressed="true" data-i18n="f.all">All</button>
+        <button type="button" id="f-problem" data-k="problem" aria-pressed="false" data-i18n="f.problem">Problems</button>
+        <button type="button" id="f-opportunity" data-k="opportunity" aria-pressed="false" data-i18n="f.opportunity">Opportunities</button>
+        <button type="button" id="f-watch" data-k="watch" aria-pressed="false" data-i18n="f.watch">Watch</button>
       </div>
     </div>
     <div class="progress" id="progress"></div>
@@ -591,46 +603,46 @@ tr.detail td { padding: 0 0 14px; border-bottom: 1px solid var(--line); text-ali
 
   <section class="card-s panel" id="simulator" aria-labelledby="sim-title">
     <div class="panel-head">
-      <div><h2 id="sim-title">Budget simulator</h2><p>Drag a daily budget and see the projected monthly profit after ads. The model uses each campaign's own data with diminishing returns (contribution grows with spend<sup>0.7</sup>).</p></div>
+      <div><h2 id="sim-title"><span data-i18n="sim.title">Budget simulator</span></h2><p data-i18n-html="sim.sub">Drag a daily budget and see the projected monthly profit after ads. The model uses each campaign's own data with diminishing returns (contribution grows with spend<sup>0.7</sup>).</p></div>
     </div>
     <div class="sim">
       <div class="sim-rows" id="sim-rows"></div>
       <div class="sim-total" id="sim-total">
-        <div class="eyebrow">Projected change</div>
+        <div class="eyebrow" data-i18n="sim.proj">Projected change</div>
         <div class="big num" id="sim-big">CHF 0</div>
         <div class="rows" id="sim-sum"></div>
-        <div class="btns"><button type="button" class="btn sm" id="sim-ai">Apply recommended plan</button><button type="button" class="btn ghost sm" id="sim-reset">Reset</button></div>
-        <p>Estimate per month. Validate changes with a 7 to 14 day test.</p>
+        <div class="btns"><button type="button" class="btn sm" id="sim-ai" data-i18n="sim.apply">Apply recommended plan</button><button type="button" class="btn ghost sm" id="sim-reset" data-i18n="sim.reset">Reset</button></div>
+        <p data-i18n="sim.note">Estimate per month. Validate changes with a 7 to 14 day test.</p>
       </div>
     </div>
   </section>
 
   <section class="card-s panel" id="campaigns" aria-labelledby="camp-title">
     <div class="panel-head">
-      <div><h2 id="camp-title">Campaigns: platform claims vs. real profit</h2><p>True ROAS = Shopify-confirmed net sales ÷ spend. POAS = contribution before ads ÷ spend; above 1.00 the campaign earns money.</p></div>
+      <div><h2 id="camp-title"><span data-i18n="camp.title">Campaigns: platform claims vs. real profit</span></h2><p data-i18n="camp.sub">True ROAS = Shopify-confirmed net sales ÷ spend. POAS = contribution before ads ÷ spend; above 1.00 the campaign earns money.</p></div>
     </div>
     <div class="table-wrap"><table id="campaign-table"></table></div>
   </section>
 
   <section class="card-s panel" id="products" aria-labelledby="prod-title">
     <div class="panel-head">
-      <div><h2 id="prod-title">Products after all costs</h2><p>COGS, shipping, payment fees, returns and allocated ad spend. Click a row for its cost breakdown, a column to sort.</p></div>
+      <div><h2 id="prod-title"><span data-i18n="prod.title">Products after all costs</span></h2><p data-i18n="prod.sub">COGS, shipping, payment fees, returns and allocated ad spend. Click a row for its cost breakdown, a column to sort.</p></div>
     </div>
     <div class="toolbar">
-      <label class="search" for="psearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="psearch" type="search" placeholder="Search product, brand or SKU"></label>
+      <label class="search" for="psearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="psearch" type="search" placeholder="Search product, brand or SKU" data-i18n-ph="prod.search"></label>
       <div class="cats" id="cats"></div>
     </div>
     <div class="table-wrap"><table id="product-table"></table></div>
   </section>
 
   <section class="card-s panel" id="how" aria-labelledby="arch-title">
-    <div class="panel-head"><div><h2 id="arch-title">How it works</h2><p>Each layer is independent, so new sources and new checks plug in without touching the rest.</p></div></div>
+    <div class="panel-head"><div><h2 id="arch-title"><span data-i18n="how.title">How it works</span></h2><p data-i18n="how.sub">Each layer is independent, so new sources and new checks plug in without touching the rest.</p></div></div>
     <div class="flow">
-      <div><span class="n">01</span><h3>Connectors</h3><p>Shopify, Google Ads, Meta, GA4 today. Merchant Center and TikTok are one file each.</p><code>src/connectors/*</code></div>
-      <div><span class="n">02</span><h3>Canonical model</h3><p>Orders, refunds, products with landed cost, ad spend per campaign and day, traffic.</p><code>src/core/types.ts</code></div>
-      <div><span class="n">03</span><h3>Profit engine</h3><p>CM1 → CM2 → CM3 per product, campaign and channel. Ad spend allocated by Shopify-confirmed revenue.</p><code>src/engine/profit.ts</code></div>
-      <div><span class="n">04</span><h3>Detectors</h3><p>Loss-makers, capped winners, CPC spikes, stock-outs, attribution gaps, shipping leaks. Hourly, with Slack alerts.</p><code>src/engine/insights.ts</code></div>
-      <div><span class="n">05</span><h3>AI analyst</h3><p>Claude answers and writes the daily briefing by calling engine tools, so every figure is traceable.</p><code>src/ai/*</code></div>
+      <div><span class="n">01</span><h3 data-i18n="how.1.t">Connectors</h3><p data-i18n="how.1.p">Shopify, Google Ads, Meta, GA4 today. Merchant Center and TikTok are one file each.</p><code>src/connectors/*</code></div>
+      <div><span class="n">02</span><h3 data-i18n="how.2.t">Canonical model</h3><p data-i18n="how.2.p">Orders, refunds, products with landed cost, ad spend per campaign and day, traffic.</p><code>src/core/types.ts</code></div>
+      <div><span class="n">03</span><h3 data-i18n="how.3.t">Profit engine</h3><p data-i18n="how.3.p">CM1 → CM2 → CM3 per product, campaign and channel. Ad spend allocated by Shopify-confirmed revenue.</p><code>src/engine/profit.ts</code></div>
+      <div><span class="n">04</span><h3 data-i18n="how.4.t">Detectors</h3><p data-i18n="how.4.p">Loss-makers, capped winners, CPC spikes, stock-outs, attribution gaps, shipping leaks. Hourly, with Slack alerts.</p><code>src/engine/insights.ts</code></div>
+      <div><span class="n">05</span><h3 data-i18n="how.5.t">AI analyst</h3><p data-i18n="how.5.p">Claude answers and writes the daily briefing by calling engine tools, so every figure is traceable.</p><code>src/ai/*</code></div>
     </div>
   </section>
 

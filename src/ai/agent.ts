@@ -6,6 +6,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT, TOOLS, runTool, type ToolContext } from "./tools.ts";
+import { makeT, type Lang } from "../i18n/index.ts";
 
 const MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-5-5";
 const MAX_ROUNDS = 8;
@@ -25,18 +26,23 @@ export function aiAvailable() {
   return !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
 }
 
-export async function askAnalyst(ctx: ToolContext, history: ChatTurn[]): Promise<AgentResult> {
+export async function askAnalyst(ctx: ToolContext, history: ChatTurn[], lang: Lang = "en"): Promise<AgentResult> {
   client ??= new Anthropic();
   const tools: Anthropic.Beta.BetaTool[] = TOOLS.map((t) => ({ name: t.name, description: t.description, input_schema: t.input_schema }));
   // The system prompt and tool list never change between requests, so they are cached.
   const messages: Anthropic.Beta.BetaMessageParam[] = history.map((h) => ({ role: h.role, content: h.content }));
+  // The language instruction goes after the cached system prompt so the cache stays shared across languages.
+  const system: Anthropic.Beta.BetaTextBlockParam[] = [
+    { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+    { type: "text", text: `Dashboard language: ${lang}. ${makeT(lang)("ai.langInstruction")}` },
+  ];
   const toolCalls: AgentResult["toolCalls"] = [];
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const response = await client.beta.messages.create({
       model: MODEL,
       max_tokens: 16000,
-      system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+      system,
       tools,
       messages,
       output_config: { effort: "medium" },
@@ -74,10 +80,10 @@ export async function askAnalyst(ctx: ToolContext, history: ChatTurn[]): Promise
 }
 
 /** One-shot executive briefing, used by the monitor job for proactive alerts. */
-export async function writeBriefing(ctx: ToolContext): Promise<string> {
+export async function writeBriefing(ctx: ToolContext, lang: Lang = "en"): Promise<string> {
   const { text } = await askAnalyst(ctx, [{
     role: "user",
     content: "Write this morning's profit briefing for the managing director: the 3 most important problems and the 2 biggest opportunities right now, each with the CHF impact and the concrete action. Use get_overview and get_insights.",
-  }]);
+  }], lang);
   return text;
 }
