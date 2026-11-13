@@ -4,13 +4,16 @@
   "private": true,
   "description": "AI-based profit monitoring and control system for e-commerce (PoC: Shopify, Google Ads, Meta).",
   "type": "module",
-  "engines": { "node": ">=22.18" },
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "build": "node scripts/build.ts",
     "start": "npm run build && node src/server.ts",
     "monitor": "node src/jobs/monitor.ts --once",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/*.test.ts",
+    "build:vercel": "node --experimental-strip-types scripts/build.ts --vercel"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0"

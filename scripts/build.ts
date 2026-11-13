@@ -3,9 +3,11 @@
  *   web/dist/index.html + app.js    served by src/server.ts (talks to the API)
  *   dist/artifact.html               single self-contained page: engine + demo data
  *                                    run in the browser (the hosted demo)
+ *   .vercel/output/  (--vercel)      Vercel Build Output API v3: the same dashboard as
+ *                                    static files + one serverless function per API route
  */
 import { build } from "esbuild";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 
 const page = await readFile("web/page.html", "utf8");
 await mkdir("web/dist", { recursive: true });
@@ -22,3 +24,38 @@ const js = embedded.outputFiles![0]!.text.replace(/<\/script/gi, "<\\/script");
 await writeFile("dist/artifact.html", page.replace('<script src="app.js"></script>', `<script>${js}</script>`));
 
 console.log(`built web/dist (server mode, ${(server.outputFiles![0]!.text.length / 1024).toFixed(0)} KB) and dist/artifact.html (${(js.length / 1024).toFixed(0)} KB)`);
+
+if (process.argv.includes("--vercel")) {
+  const out = ".vercel/output";
+  await rm(out, { recursive: true, force: true });
+  await cp("web/dist", `${out}/static`, { recursive: true });
+  // Claude tool loops can take a while; raise on Pro/Enterprise plans if answers time out.
+  const maxDuration = Number(process.env.VERCEL_FUNCTION_MAX_DURATION ?? 60);
+  for (const route of ["dashboard", "chat", "refresh", "health"]) {
+    const dir = `${out}/functions/api/${route}.func`;
+    await build({
+      entryPoints: [`src/vercel/${route}.ts`],
+      outfile: `${dir}/index.mjs`,
+      bundle: true,
+      platform: "node",
+      format: "esm",
+      target: "node22",
+      minify: true,
+      legalComments: "none",
+      // some dependencies still call require(); give the ESM bundle one
+      banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
+    });
+    await writeFile(`${dir}/.vc-config.json`, JSON.stringify({
+      runtime: "nodejs22.x",
+      handler: "index.mjs",
+      launcherType: "Nodejs",
+      shouldAddHelpers: false,
+      maxDuration: route === "chat" ? maxDuration : 30,
+    }, null, 2));
+  }
+  await writeFile(`${out}/config.json`, JSON.stringify({
+    version: 3,
+    routes: [{ src: "^/healthz$", dest: "/api/health" }, { handle: "filesystem" }],
+  }, null, 2));
+  console.log(`built ${out} (static dashboard + 4 functions, chat maxDuration ${maxDuration}s)`);
+}

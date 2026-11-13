@@ -16,8 +16,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Remember which alerts were already sent, so each hourly run only posts new ones.
+      - uses: actions/cache@v4
+        with:
+          path: .monitor-state.json
+          key: monitor-state-${{ github.run_id }}
+          restore-keys: monitor-state-
       - run: npm run monitor
         env:
+          MONITOR_STATE_FILE: .monitor-state.json
           DATA_MODE: ${{ vars.DATA_MODE || 'demo' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

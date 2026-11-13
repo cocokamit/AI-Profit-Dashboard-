@@ -21,6 +21,17 @@ Without an API key (or when a demo viewer is not signed in to Claude), the chat 
 
 Requires Node ≥ 22.18. TypeScript runs natively, so there is no compile step for the server.
 
+## Deploy to Vercel
+
+1. In Vercel: **Add New → Project**, import this repository. `vercel.json` sets the build, so leave the framework preset at **Other** and the other settings at their defaults.
+2. Optional: under **Settings → Environment Variables** add `ANTHROPIC_API_KEY` for the AI analyst, and the source credentials plus `DATA_MODE=live` from `.env.example` for real data. Without them it runs on demo data and the chat uses rules mode.
+3. Deploy. The dashboard is served as static files, and `/api/dashboard`, `/api/chat`, `/api/refresh` and `/healthz` run as Node 22 serverless functions. These are the same handlers as the local server (`src/http/api.ts`), packaged by `npm run build:vercel` into `.vercel/output` (Vercel Build Output API).
+
+Notes:
+- **Chat timeout**: AI answers that use several tools can take 30–90 s. Function duration is set to 60 s. On a plan that allows longer, set `VERCEL_FUNCTION_MAX_DURATION=300` as an environment variable and redeploy.
+- **Monitoring**: Vercel cron jobs on the Hobby plan run at most once a day, so the hourly monitor runs in GitHub Actions instead (`.github/workflows/monitor.yml`). Add the same secrets there.
+- **Caching**: each function instance keeps the pulled data for 10 minutes. In production this moves to the database (see *Path to production*).
+
 ## What it does
 
 | Layer | What happens | Where |
@@ -100,7 +111,9 @@ src/connectors/    shopify, google-ads, meta, ga4, demo-data (seeded simulation)
 src/engine/        profit.ts (margins), insights.ts (detectors)
 src/ai/            tools.ts (shared tool definitions + system prompt), agent.ts (Claude tool loop),
                    offline.ts (rules-mode answers when no LLM is available)
-src/server.ts      HTTP API + static dashboard
+src/http/api.ts    API route handlers (shared by the local server and Vercel)
+src/server.ts      local/container server: API + static dashboard
+src/vercel/        Vercel function entry points
 src/jobs/          monitor.ts (hourly detection, Slack alerts, daily AI briefing)
 web/               dashboard (page.html + src/main.ts), built by scripts/build.ts
 test/              engine invariants, detector, tool and rules-mode tests

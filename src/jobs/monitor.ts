@@ -9,12 +9,30 @@
  *   node src/jobs/monitor.ts          run forever
  *   node src/jobs/monitor.ts --once   one pass (cron / CI / GitHub Actions)
  */
+import { readFile, writeFile } from "node:fs/promises";
 import { getAnalysis } from "../service.ts";
 import { aiAvailable, writeBriefing } from "../ai/agent.ts";
 import type { Insight } from "../engine/insights.ts";
 
-const seen = new Map<string, number>();
+// State survives restarts and one-shot runs (cron / GitHub Actions) when MONITOR_STATE_FILE is set.
+const STATE_FILE = process.env.MONITOR_STATE_FILE;
+const RE_ALERT_AFTER_MS = 7 * 24 * 3600 * 1000; // remind about unresolved findings weekly
+let seen = new Map<string, number>();
 let lastBriefingDay = "";
+
+async function loadState() {
+  if (!STATE_FILE) return;
+  try {
+    const s = JSON.parse(await readFile(STATE_FILE, "utf8")) as { seen: Record<string, number>; lastBriefingDay: string };
+    seen = new Map(Object.entries(s.seen ?? {}));
+    lastBriefingDay = s.lastBriefingDay ?? "";
+  } catch { /* first run */ }
+}
+
+async function saveState() {
+  if (!STATE_FILE) return;
+  await writeFile(STATE_FILE, JSON.stringify({ seen: Object.fromEntries(seen), lastBriefingDay }));
+}
 
 async function notify(text: string) {
   const hook = process.env.SLACK_WEBHOOK_URL;
@@ -28,8 +46,13 @@ const fmt = (i: Insight) =>
 
 export async function runOnce() {
   const { ds, analysis, insights } = await getAnalysis(30, true);
-  const fresh = insights.filter((i) => (i.severity === "critical" || i.severity === "high") && !seen.has(i.id));
-  for (const i of insights) seen.set(i.id, Date.now());
+  await loadState();
+  const now = Date.now();
+  const fresh = insights.filter((i) => (i.severity === "critical" || i.severity === "high") && now - (seen.get(i.id) ?? 0) > RE_ALERT_AFTER_MS);
+  for (const i of fresh) seen.set(i.id, now);
+  // forget findings that disappeared, so they alert again if they come back
+  const current = new Set(insights.map((i) => i.id));
+  for (const id of [...seen.keys()]) if (!current.has(id)) seen.delete(id);
   if (fresh.length) await notify(`:rotating_light: ${fresh.length} new finding(s)\n\n${fresh.map(fmt).join("\n\n")}`);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -37,6 +60,7 @@ export async function runOnce() {
     lastBriefingDay = today;
     await notify(`:sunrise: *Profit briefing*\n${await writeBriefing({ analysis, insights, dataset: ds })}`);
   }
+  await saveState();
   console.log(JSON.stringify({ level: "info", job: "monitor", insights: insights.length, new: fresh.length, cm3: Math.round(analysis.totals.cm3) }));
 }
 
